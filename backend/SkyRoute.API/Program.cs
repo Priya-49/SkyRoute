@@ -27,9 +27,13 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod();
     });
 });
-builder.Services.AddScoped<IFlightProvider, MockFlightProvider>();
-builder.Services.AddSingleton<SkyRoute.Application.Interfaces.IPricingStrategy>(_ => new PercentageMarkupStrategy("GlobalAir", 15m));
-builder.Services.AddSingleton<SkyRoute.Application.Interfaces.IPricingStrategy>(_ => new FixedMarkupStrategy("BudgetWings", 25m));
+// Flight providers — adding a new carrier requires only a new class + one registration here.
+builder.Services.AddScoped<IFlightProvider, GlobalAirProvider>();
+builder.Services.AddScoped<IFlightProvider, BudgetWingsProvider>();
+
+// Pricing strategies — each strategy is resolved by ProviderName at search time.
+builder.Services.AddSingleton<SkyRoute.Application.Interfaces.IPricingStrategy, GlobalAirPricingStrategy>();
+builder.Services.AddSingleton<SkyRoute.Application.Interfaces.IPricingStrategy, BudgetWingsPricingStrategy>();
 builder.Services.AddSingleton<IFlightSearchCache, FlightSearchCache>();
 
 var app = builder.Build();

@@ -49,7 +49,7 @@ public sealed class ApiConfigurationTests : IClassFixture<WebApplicationFactory<
         var cache = services.GetService<IFlightSearchCache>();
         var memoryCache = services.GetService<IMemoryCache>();
 
-        Assert.Single(providers);
+        Assert.Equal(2, providers.Count());
         Assert.Equal(2, pricingStrategies.Count());
         Assert.NotNull(cache);
         Assert.NotNull(memoryCache);
