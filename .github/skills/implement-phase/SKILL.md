@@ -5,7 +5,7 @@ description: Implement a SkyRoute roadmap phase end-to-end in small, tested, com
 
 # Implement Phase
 
-The argument supplied after invoking this skill identifies a phase from [Roadmap.md](../../docs/Roadmap.md), in any of these forms: `1A`, `Phase 1A`, `2C`, `Phase 3D`. Strip the word "Phase" and surrounding whitespace before matching.
+The argument supplied after invoking this skill identifies a phase from [Roadmap.md](../../../Roadmap.md), in any of these forms: `1A`, `Phase 1A`, `2C`, `Phase 3D`. Strip the word "Phase" and surrounding whitespace before matching.
 
 This skill takes a single roadmap phase from documented to implemented, tested, committed, and pushed, in small verifiable steps, then returns to `main` so the next phase always starts clean.
 
@@ -32,11 +32,19 @@ Execute the phase's Deliverables list from `Roadmap.md` in order, one bullet per
 
 ---
 
-## Step 3 — Create or Switch Branch
+## Step 3 — Create or Switch Branch (Once Per Phase, Not Per Micro-Step)
 
-Slugify the phase name into: `feature/phase-<id-lowercase>-<slugified-name>`
+**Run this step exactly once, before Step 4 begins.** Every micro-step in Step 4's loop commits onto this same branch — do not re-run this step, re-check, or create a new branch when looping back to Step 4.1 for the next micro-step. One phase = one branch = many commits on it.
 
-Example: `## Phase 1A — Domain Foundation` → `feature/phase-1a-domain-foundation`
+Build the branch name as: `feature/<id-lowercase>-<short-slug>`
+
+* `<id-lowercase>` is the phase ID only (e.g. `1a`, `2c`) — do not include the word "phase"; the ID alone is unambiguous given this naming pattern.
+* `<short-slug>` is the first 2-3 meaningful words of the phase name, lowercased and hyphenated, dropping connector words (`and`, `&`, `the`, etc.) and dropping anything past the third meaningful word. This keeps branch names scannable instead of mirroring the full heading verbatim.
+
+Examples:
+* `## Phase 1A — Domain Foundation` → `feature/1a-domain-foundation`
+* `## Phase 2C — Angular App Scaffold & Services` → `feature/2c-angular-scaffold`
+* `## Phase 3D — Create Booking API Controller` → `feature/3d-booking-api-controller`
 
 ```
 git status                     # confirm clean working tree before switching
@@ -50,7 +58,7 @@ Confirm the active branch with `git branch --show-current`. If the working tree 
 
 ## Step 4 — Implement Each Micro-Step
 
-For each micro-step in order:
+For each micro-step in order, **on the single branch created in Step 3** — looping back here for the next micro-step never means going back to Step 3:
 
 **4.1 — Build only this micro-step.** Implement exactly the scope named in Step 2 — nothing from a later micro-step or later phase. Respect Clean Architecture boundaries per the roadmap's layering and any conventions found in `Architecture.md`/`Api_Contracts.md` if present.
 
@@ -62,11 +70,12 @@ Zero errors, zero unaddressed warnings. Fix immediately before proceeding.
 
 **4.3 — Add tests for this micro-step.** Match test type to what was built: unit tests for entities/value objects/use cases/pricing logic, integration tests for repositories/DB/cache, controller/API tests for endpoints. Arrange-act-assert, one behavior per test, cover the happy path plus edge cases the roadmap calls out explicitly (e.g. Phase 1B names "zero, negative, large numbers" as literal test cases).
 
-**4.4 — Run tests.**
+**4.4 — Run the scoped test.**
 ```
 dotnet test --filter "FullyQualifiedName~<TestClassForThisMicroStep>"
-dotnet test
 ```
+Only this micro-step's own new/changed tests need to pass here — the full suite runs once at phase end (Step 5), not after every micro-step, to avoid re-running the growing cross-phase suite N times per phase.
+
 **Failure handling:** if a test fails, attempt a fix and re-run. If the same micro-step's tests are still failing after **2 fix attempts**, stop this run entirely — do not keep retrying, do not skip the test, do not commit. Report the micro-step, the failing test(s), what was tried, and the current error output, then hand control back.
 
 **4.5 — Self-review against exit criteria.** Check the micro-step's output against the specific Exit Criteria bullets it claims to satisfy, plus: no accidental cross-layer dependency, no hardcoded logic where the roadmap specifies an interface/strategy pattern, API responses match `Api_Contracts.md` if present, no missing validation a deliverable bullet implies. Fix any gaps before committing.
