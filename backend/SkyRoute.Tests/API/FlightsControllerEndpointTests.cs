@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 
@@ -91,5 +92,25 @@ public sealed class FlightsControllerEndpointTests : IClassFixture<WebApplicatio
         Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
         Assert.True(doc.RootElement.TryGetProperty("errors", out var errors));
         Assert.True(errors.TryGetProperty("Origin", out _));
+    }
+
+    [Fact]
+    public async Task Search_ReturnsBadRequest_ForInvalidDateFormat()
+    {
+        using var client = _factory.CreateClient();
+        const string json = """
+                            {
+                              "origin": "JFK",
+                              "destination": "LHR",
+                              "departureDate": "15-08-2026",
+                              "passengers": 2,
+                              "cabinClass": "Economy"
+                            }
+                            """;
+        using var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        var response = await client.PostAsync("/api/flights/search", content);
+
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
     }
 }
