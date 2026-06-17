@@ -43,6 +43,72 @@ public sealed class CreateBookingUseCaseCoreTests
         await Assert.ThrowsAsync<KeyNotFoundException>(() => useCase.ExecuteAsync(BuildCommand(Guid.NewGuid())));
     }
 
+    [Fact]
+    public async Task ExecuteAsync_RecalculatesPriceFromStrategyBeforeSaving()
+    {
+        var cacheEntry = BuildCacheEntry(provider: "BudgetWings", baseFare: 200m, originCode: "JFK", destinationCode: "LHR");
+        var cache = new StubCache(cacheEntry);
+        var repository = new RecordingBookingRepository();
+        var useCase = new CreateBookingUseCase(
+            cache,
+            new CreateBookingCommandValidator(),
+            repository,
+            new SkyRoute.Application.Interfaces.IPricingStrategy[] { new FixedPricing("BudgetWings", 180m) });
+
+        var result = await useCase.ExecuteAsync(BuildCommand(cacheEntry.FlightId));
+
+        Assert.NotNull(repository.LastSaved);
+        Assert.Equal(180m, repository.LastSaved!.PricePerPassenger);
+        Assert.Equal(360m, repository.LastSaved.TotalPrice);
+        Assert.Equal(180m, result.PricePerPassenger);
+        Assert.Equal(360m, result.TotalPrice);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_GeneratesUniqueReferencesAcrossBookings()
+    {
+        var firstCacheEntry = BuildCacheEntry(provider: "GlobalAir", baseFare: 320m, originCode: "JFK", destinationCode: "LHR");
+        var cache = new StubCache(firstCacheEntry);
+        var validator = new CreateBookingCommandValidator();
+        var repository = new RecordingBookingRepository();
+        var useCase = new CreateBookingUseCase(
+            cache,
+            validator,
+            repository,
+            new SkyRoute.Application.Interfaces.IPricingStrategy[] { new FixedPricing("GlobalAir", 368m) });
+
+        var firstCommand = BuildCommand(firstCacheEntry.FlightId);
+        var firstResult = await useCase.ExecuteAsync(firstCommand);
+
+        var secondCacheEntry = BuildCacheEntry(provider: "GlobalAir", baseFare: 320m, originCode: "JFK", destinationCode: "LHR");
+        cache.Set(secondCacheEntry);
+        var secondCommand = BuildCommand(secondCacheEntry.FlightId);
+        var secondResult = await useCase.ExecuteAsync(secondCommand);
+
+        Assert.NotEqual(firstResult.ReferenceCode, secondResult.ReferenceCode);
+        Assert.Matches("^SKY-[A-Z0-9]{7}$", firstResult.ReferenceCode);
+        Assert.Matches("^SKY-[A-Z0-9]{7}$", secondResult.ReferenceCode);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ThrowsValidationException_WhenCommandRouteAndCachedRouteConflict()
+    {
+        var domesticCacheEntry = BuildCacheEntry(provider: "GlobalAir", baseFare: 320m, originCode: "DEL", destinationCode: "BOM");
+        var cache = new StubCache(domesticCacheEntry);
+        var repository = new RecordingBookingRepository();
+        var useCase = new CreateBookingUseCase(
+            cache,
+            new CreateBookingCommandValidator(),
+            repository,
+            new SkyRoute.Application.Interfaces.IPricingStrategy[] { new FixedPricing("GlobalAir", 368m) });
+
+        var command = BuildCommand(domesticCacheEntry.FlightId);
+        command.DocumentType = "Passport";
+        command.DocumentNumber = "P1234567";
+
+        await Assert.ThrowsAsync<ValidationException>(() => useCase.ExecuteAsync(command));
+    }
+
     private static CreateBookingCommand BuildCommand(Guid flightId) =>
         new()
         {
@@ -71,9 +137,16 @@ public sealed class CreateBookingUseCaseCoreTests
 
     private sealed class StubCache : IFlightSearchCache
     {
-        private readonly CachedFlightEntry? _entry;
+        private CachedFlightEntry? _entry;
 
         public StubCache(CachedFlightEntry? entry)
+        {
+            _entry = entry;
+        }
+
+        public Guid CurrentFlightId => _entry?.FlightId ?? Guid.Empty;
+
+        public void Set(CachedFlightEntry entry)
         {
             _entry = entry;
         }
