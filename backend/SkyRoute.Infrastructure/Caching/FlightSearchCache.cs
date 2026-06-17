@@ -6,8 +6,15 @@ namespace SkyRoute.Infrastructure.Caching;
 
 public sealed class FlightSearchCache : IFlightSearchCache
 {
+    public static readonly TimeSpan DefaultEntryTtl = TimeSpan.FromMinutes(30);
+
     private readonly IMemoryCache _memoryCache;
     private readonly TimeSpan _entryTtl;
+
+    public FlightSearchCache(IMemoryCache memoryCache)
+        : this(memoryCache, DefaultEntryTtl)
+    {
+    }
 
     public FlightSearchCache(IMemoryCache memoryCache, TimeSpan entryTtl)
     {
