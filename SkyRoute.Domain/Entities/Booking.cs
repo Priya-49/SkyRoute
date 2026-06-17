@@ -1,3 +1,5 @@
+using SkyRoute.Domain.ValueObjects;
+
 namespace SkyRoute.Domain.Entities;
 
 public sealed class Booking
@@ -17,7 +19,7 @@ public sealed class Booking
 
     public Booking(
         Guid id,
-        string referenceCode,
+        BookingReference referenceCode,
         string provider,
         string flightNumber,
         string origin,
@@ -32,7 +34,8 @@ public sealed class Booking
         string documentNumber,
         decimal pricePerPassenger,
         decimal totalPrice,
-        DateTime createdAt)
+        DateTime createdAt,
+        BookingStatus status)
     {
         if (id == Guid.Empty)
         {
@@ -40,7 +43,7 @@ public sealed class Booking
         }
 
         Id = id;
-        ReferenceCode = RequireValue(referenceCode, nameof(referenceCode));
+        ReferenceCode = referenceCode ?? throw new ArgumentNullException(nameof(referenceCode));
         Provider = RequireValue(provider, nameof(provider));
         FlightNumber = RequireValue(flightNumber, nameof(flightNumber));
         Origin = RequireIataCode(origin, nameof(origin));
@@ -56,6 +59,7 @@ public sealed class Booking
         PricePerPassenger = pricePerPassenger;
         TotalPrice = totalPrice;
         CreatedAt = createdAt;
+        Status = RequireStatus(status);
 
         ValidateRoute();
         ValidateTimes();
@@ -65,7 +69,7 @@ public sealed class Booking
 
     public Guid Id { get; }
 
-    public string ReferenceCode { get; }
+    public BookingReference ReferenceCode { get; }
 
     public string Provider { get; }
 
@@ -96,6 +100,8 @@ public sealed class Booking
     public decimal TotalPrice { get; }
 
     public DateTime CreatedAt { get; }
+
+    public BookingStatus Status { get; }
 
     private void ValidateRoute()
     {
@@ -181,5 +187,15 @@ public sealed class Booking
         }
 
         return value.Trim();
+    }
+
+    private static BookingStatus RequireStatus(BookingStatus status)
+    {
+        if (!Enum.IsDefined(status))
+        {
+            throw new ArgumentOutOfRangeException(nameof(status), "Booking status is not valid.");
+        }
+
+        return status;
     }
 }
