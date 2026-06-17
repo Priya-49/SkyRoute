@@ -6,6 +6,7 @@ using SkyRoute.Infrastructure.Providers;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+const string CorsPolicyName = "SkyRouteCors";
 
 builder.Host.UseSerilog((context, loggerConfiguration) =>
 {
@@ -17,6 +18,14 @@ builder.Host.UseSerilog((context, loggerConfiguration) =>
 
 builder.Services.AddRouting();
 builder.Services.AddMemoryCache();
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(CorsPolicyName, policy =>
+    {
+        policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod();
+    });
+});
 builder.Services.AddScoped<IFlightProvider, MockFlightProvider>();
 builder.Services.AddSingleton<SkyRoute.Application.Interfaces.IPricingStrategy>(_ => new PercentageMarkupStrategy("GlobalAir", 15m));
 builder.Services.AddSingleton<SkyRoute.Application.Interfaces.IPricingStrategy>(_ => new FixedMarkupStrategy("BudgetWings", 25m));
@@ -26,6 +35,7 @@ var app = builder.Build();
 
 app.UseSerilogRequestLogging();
 app.UseRouting();
+app.UseCors(CorsPolicyName);
 
 app.MapGet("/", () => Results.Ok("SkyRoute API is running."));
 
