@@ -5,7 +5,7 @@ description: Implement a SkyRoute roadmap phase end-to-end in small, tested, com
 
 # Implement Phase
 
-The argument supplied after invoking this skill identifies a phase from [Roadmap.md](../../../Roadmap.md), in any of these forms: `1A`, `Phase 1A`, `2C`, `Phase 3D`. Strip the word "Phase" and surrounding whitespace before matching.
+The argument supplied after invoking this skill identifies a phase from [Roadmap.md](../../docs/Roadmap.md) in any of these forms: `1A`, `Phase 1A`, `2C`, `Phase 3D`. Strip the word "Phase" and surrounding whitespace before matching.
 
 This skill takes a single roadmap phase from documented to implemented, tested, committed, and pushed, in small verifiable steps, then returns to `main` so the next phase always starts clean.
 
