@@ -16,7 +16,11 @@ public sealed class SearchFlightsUseCaseFanOutTests
         var providerOne = new CountingProvider("GlobalAir", 180m);
         var providerTwo = new CountingProvider("BudgetWings", 120m);
         var validator = new SearchFlightsQueryValidator();
-        var useCase = new SearchFlightsUseCase(new IFlightProvider[] { providerOne, providerTwo }, validator, new NoOpCache());
+        var useCase = new SearchFlightsUseCase(
+            new IFlightProvider[] { providerOne, providerTwo },
+            validator,
+            new NoOpCache(),
+            new SkyRoute.Application.Interfaces.IPricingStrategy[] { new PassThroughPricing("GlobalAir"), new PassThroughPricing("BudgetWings") });
         var query = BuildQuery();
 
         var results = await useCase.ExecuteAsync(query);
@@ -30,7 +34,11 @@ public sealed class SearchFlightsUseCaseFanOutTests
     public async Task ExecuteAsync_ThrowsValidationException_ForInvalidQuery()
     {
         var provider = new CountingProvider("GlobalAir", 180m);
-        var useCase = new SearchFlightsUseCase(new IFlightProvider[] { provider }, new SearchFlightsQueryValidator(), new NoOpCache());
+        var useCase = new SearchFlightsUseCase(
+            new IFlightProvider[] { provider },
+            new SearchFlightsQueryValidator(),
+            new NoOpCache(),
+            new SkyRoute.Application.Interfaces.IPricingStrategy[] { new PassThroughPricing("GlobalAir") });
         var query = BuildQuery();
         query.Origin = "BAD";
 
@@ -90,5 +98,17 @@ public sealed class SearchFlightsUseCaseFanOutTests
         }
 
         public CachedFlightEntry? Get(Guid flightId) => null;
+    }
+
+    private sealed class PassThroughPricing : SkyRoute.Application.Interfaces.IPricingStrategy
+    {
+        public PassThroughPricing(string providerName)
+        {
+            ProviderName = providerName;
+        }
+
+        public string ProviderName { get; }
+
+        public decimal Calculate(decimal baseFare) => baseFare;
     }
 }

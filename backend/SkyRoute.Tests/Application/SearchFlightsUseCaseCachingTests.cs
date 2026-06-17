@@ -14,7 +14,11 @@ public sealed class SearchFlightsUseCaseCachingTests
     {
         var cache = new RecordingCache();
         var provider = new SingleFlightProvider();
-        var useCase = new SearchFlightsUseCase(new IFlightProvider[] { provider }, new SearchFlightsQueryValidator(), cache);
+        var useCase = new SearchFlightsUseCase(
+            new IFlightProvider[] { provider },
+            new SearchFlightsQueryValidator(),
+            cache,
+            new SkyRoute.Application.Interfaces.IPricingStrategy[] { new PassThroughPricing("GlobalAir") });
 
         var results = await useCase.ExecuteAsync(new SearchFlightsQuery
         {
@@ -65,5 +69,18 @@ public sealed class SearchFlightsUseCaseCachingTests
 
             return Task.FromResult<IReadOnlyCollection<Flight>>(new[] { flight });
         }
+
+    }
+
+    private sealed class PassThroughPricing : SkyRoute.Application.Interfaces.IPricingStrategy
+    {
+        public PassThroughPricing(string providerName)
+        {
+            ProviderName = providerName;
+        }
+
+        public string ProviderName { get; }
+
+        public decimal Calculate(decimal baseFare) => baseFare;
     }
 }

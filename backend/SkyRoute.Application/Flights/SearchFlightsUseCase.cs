@@ -12,15 +12,19 @@ public sealed class SearchFlightsUseCase
     private readonly IEnumerable<IFlightProvider> _providers;
     private readonly IValidator<SearchFlightsQuery> _validator;
     private readonly Interfaces.IFlightSearchCache _cache;
+    private readonly IReadOnlyDictionary<string, Interfaces.IPricingStrategy> _pricingStrategies;
 
     public SearchFlightsUseCase(
         IEnumerable<IFlightProvider> providers,
         IValidator<SearchFlightsQuery> validator,
-        Interfaces.IFlightSearchCache cache)
+        Interfaces.IFlightSearchCache cache,
+        IEnumerable<Interfaces.IPricingStrategy> pricingStrategies)
     {
         _providers = providers ?? throw new ArgumentNullException(nameof(providers));
         _validator = validator ?? throw new ArgumentNullException(nameof(validator));
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
+        _pricingStrategies = (pricingStrategies ?? throw new ArgumentNullException(nameof(pricingStrategies)))
+            .ToDictionary(strategy => strategy.ProviderName, StringComparer.Ordinal);
     }
 
     public async Task<IReadOnlyCollection<FlightResultDto>> ExecuteAsync(
@@ -60,8 +64,13 @@ public sealed class SearchFlightsUseCase
         foreach (var flight in flights)
         {
             var flightId = Guid.NewGuid();
-            var pricePerPassenger = flight.BaseFare;
-            var totalPrice = pricePerPassenger * query.Passengers;
+            if (!_pricingStrategies.TryGetValue(flight.Provider, out var strategy))
+            {
+                throw new InvalidOperationException($"No pricing strategy configured for provider '{flight.Provider}'.");
+            }
+
+            var pricePerPassenger = strategy.Calculate(flight.BaseFare);
+            var totalPrice = Math.Round(pricePerPassenger * query.Passengers, 2);
             _cache.Store(
                 flightId,
                 new Models.CachedFlightEntry(
