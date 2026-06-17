@@ -18,6 +18,7 @@ builder.Host.UseSerilog((context, loggerConfiguration) =>
 
 builder.Services.AddRouting();
 builder.Services.AddMemoryCache();
+builder.Services.AddHealthChecks();
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
 builder.Services.AddCors(options =>
 {
@@ -38,6 +39,7 @@ app.UseRouting();
 app.UseCors(CorsPolicyName);
 
 app.MapGet("/", () => Results.Ok("SkyRoute API is running."));
+app.MapHealthChecks("/health");
 
 app.Run();
 
