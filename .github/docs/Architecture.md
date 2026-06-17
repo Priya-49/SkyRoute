@@ -127,15 +127,23 @@ Orchestrates use cases; depends only on domain interfaces.
 
 **SearchFlightsUseCase flow:**
 1. Validate query (FluentValidation).
-2. Fan out to all registered `IFlightProvider` implementations.
+2. Fan out to all registered `IFlightProvider` implementations **in parallel** using `Task.WhenAll()`.
 3. Collect and merge results.
-4. Apply `IPricingStrategy` per provider.
+4. Apply `IPricingStrategy` per provider (matched by `ProviderName`).
 5. Assign a unique `FlightId` (`Guid.NewGuid()`) to each result.
-6. Store each `CachedFlightEntry` in `IFlightSearchCache` (keyed by `FlightId`, 30-minute TTL).
+6. Store each `CachedFlightEntry` in `IFlightSearchCache` (keyed by `FlightId`, 30-minute absolute TTL).
 7. Calculate total price (`pricePerPassenger × passengers`).
 8. Return the result set — sorting is delegated entirely to the frontend.
 
 The `CachedFlightEntry` stored in step 6 includes `BaseFare`. This is the only surviving copy of `BaseFare` after search — never sent to the client, and the sole authoritative source for price recalculation during booking.
+
+**Provider fan-out pattern:**
+```csharp
+var providerTasks = _providers.Select(p => p.SearchAsync(criteria, ct));
+var providerResults = await Task.WhenAll(providerTasks);
+var allFlights = providerResults.SelectMany(r => r);
+```
+If any provider throws, the exception propagates; other providers continue. Production systems should add circuit breaker pattern for fault tolerance.
 
 **CreateBookingUseCase flow:**
 1. Validate command (passenger count, document type matches route).

@@ -115,3 +115,26 @@ Label must also update reactively when the route is switched mid-form.
 ## 6. Explicitly Not Tested
 
 EF Core internals; Angular framework behavior (routing, DI resolution); the specific shape of mock provider data (only that results are returned); HTTP client configuration.
+
+---
+
+## 7. Performance SLAs & Load Considerations
+
+**Response time targets** (95th percentile, single instance):
+
+| Endpoint | Target | Rationale |
+|---|---|---|
+| `POST /api/flights/search` | < 500ms | Fan-out to 2 providers + pricing calculation + cache storage |
+| `POST /api/bookings` | < 200ms | Single cache lookup + validation + DB insert |
+
+**Load testing** is out of scope for this phase, but the following capacity notes inform production planning:
+
+- **Cache memory usage:** Each `CachedFlightEntry` ≈ 200 bytes. At 1000 active searches (6 results each), memory usage ≈ 1.2 MB — negligible.
+- **Cache expiry:** 30-minute absolute TTL means peak memory = concurrent users × 6 results × 200 bytes.
+- **Database writes:** Booking creation is the only write path. At 100 bookings/minute, standard SQL Server can handle 10x this without optimization.
+- **Provider fan-out:** If adding more providers, consider circuit breaker pattern if any provider latency > 300ms.
+
+**Monitoring recommendations** (out of implementation scope but documented for ops):
+- Alert if search endpoint p95 > 800ms
+- Alert if booking endpoint p95 > 400ms
+- Track cache hit/miss ratio (target: > 98% hit rate)

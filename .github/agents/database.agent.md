@@ -76,7 +76,8 @@ Escalate to **backend-agent** when:
 - [ ] `UQ_Bookings_ReferenceCode` unique constraint present
 - [ ] CHECK constraints enforce `Passengers` between 1 and 9
 - [ ] CHECK constraints enforce valid `DocumentType` and `CabinClass` values
-- [ ] `Migration script` reviewed — no unintended DROP statements
+- [ ] Migration script reviewed — no unintended DROP statements
+- [ ] Rollback script generated and tested before production deployment
 - [ ] No `Users`, `Sessions`, or `Payments` tables exist (out of scope)
 - [ ] Airport data is NOT in the database — in-memory registry only
 - [ ] `dotnet ef database update` applies cleanly with no errors

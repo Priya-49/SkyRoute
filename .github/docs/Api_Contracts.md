@@ -12,6 +12,7 @@
 | Content-Type | `application/json` |
 | Date format | ISO 8601 — `YYYY-MM-DDTHH:mm:ss` (UTC) |
 | Decimal format | String with 2 decimal places — `"320.00"` |
+| Currency | `USD` (all prices) — future multi-currency support via `currency` field |
 | Error format | RFC 7807 ProblemDetails |
 | HTTP success codes | `200 OK` (search), `201 Created` (booking) |
 | HTTP error codes | `400` validation, `404` not found, `500` server error |
@@ -42,7 +43,7 @@ Search for available flights across all providers.
 |---|---|---|
 | `origin` | `string` | Required. Must be a valid IATA code in the airport registry. Must differ from `destination`. |
 | `destination` | `string` | Required. Must be a valid IATA code in the airport registry. Must differ from `origin`. |
-| `departureDate` | `string` (date) | Required. Format `YYYY-MM-DD`. Must be today or a future date. |
+| `departureDate` | `string` (date) | Required. Format `YYYY-MM-DD`. Must be today or a future date. Must not exceed 365 days from today. |
 | `passengers` | `integer` | Required. Between 1 and 9 inclusive. |
 | `cabinClass` | `string` | Required. One of: `Economy`, `Business`, `FirstClass`. |
 

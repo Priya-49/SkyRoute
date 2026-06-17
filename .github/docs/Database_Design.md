@@ -51,6 +51,12 @@ CREATE TABLE Bookings (
 
 **Column notes:** `Id` uses `NEWSEQUENTIALID()` to reduce index fragmentation vs `NEWID()`. `ReferenceCode` is `NVARCHAR(12)` to fit the `SKY-` prefix + 7 chars. `Origin`/`Destination` are `NCHAR(3)` (IATA codes are always exactly 3 characters). `TotalPrice` is always server-calculated, never derived from client input. `CreatedAt` is UTC only via `SYSUTCDATETIME()`.
 
+**Reference code generation pattern:**
+- Format: `SKY-` + 7 cryptographically random uppercase alphanumeric characters `[A-Z0-9]`
+- Uniqueness enforced by `UQ_Bookings_ReferenceCode` constraint
+- Collision handling: retry up to 3 times with exponential backoff (100ms, 200ms, 400ms)
+- After 3 failures, throw `BookingReferenceGenerationException` — collision probability with 7 chars is ~1 in 78 billion per attempt
+
 **Decision:** flight details are denormalised into `Bookings` rather than a separate `Flights` table.
 **Rationale:** flights are mock-generated and not persisted independently; a foreign key to a `Flights` table would require persisting every search result. A booking record must be self-contained — enough to reconstruct a confirmation without re-querying the provider.
 **Trade-off:** if real flight data were persisted from a live API, normalisation would be reconsidered. Denormalisation is correct at this scope.
@@ -115,6 +121,32 @@ public class BookingConfiguration : IEntityTypeConfiguration<Booking>
 dotnet ef migrations add InitialCreate --project SkyRoute.Infrastructure --startup-project SkyRoute.API
 dotnet ef database update --project SkyRoute.Infrastructure --startup-project SkyRoute.API
 ```
+
+**Migration rollback strategy:**
+
+If a migration fails or needs to be reverted in production:
+
+1. **Rollback to previous migration:**
+   ```bash
+   dotnet ef database update <PreviousMigrationName> --project SkyRoute.Infrastructure --startup-project SkyRoute.API
+   ```
+
+2. **Remove failed migration from codebase:**
+   ```bash
+   dotnet ef migrations remove --project SkyRoute.Infrastructure --startup-project SkyRoute.API
+   ```
+
+3. **Pre-production validation checklist:**
+   - [ ] Review generated SQL via `dotnet ef migrations script`
+   - [ ] Verify no unintended DROP statements
+   - [ ] Test migration on copy of production data
+   - [ ] Verify rollback script works
+   - [ ] Document any manual data migration steps
+
+4. **Production deployment:**
+   - Always generate and review the migration script before applying
+   - Keep a rollback script ready before executing migration
+   - Never apply migrations directly on production — use scripted approach with review
 
 ---
 

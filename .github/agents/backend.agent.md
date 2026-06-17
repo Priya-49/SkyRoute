@@ -82,8 +82,7 @@ Escalate to **database-agent** when:
 - [ ] `IFlightSearchCache` registered as `Singleton` — not `Scoped` or `Transient`
 - [ ] `SearchFlightsUseCase` stores each result in `IFlightSearchCache` with 30-minute absolute TTL
 - [ ] `CreateBookingUseCase` returns 404 when `IFlightSearchCache.Get(flightId)` returns null
-- [ ] `CachedFlightEntry` contains `BaseFare` — used for server-side price recalculation
-- [ ] Price recalculation in `CreateBookingUseCase` uses `CachedFlightEntry.BaseFare` — not any client-supplied value
-- [ ] GlobalAir pricing: `Math.Round(baseFare * 1.15m, 2)` — verified
-- [ ] BudgetWings pricing: `Math.Max(baseFare * 0.90m, 29.99m)` — verified
-- [ ] Booking price recalculated server-side — no client price trusted
+- [ ] `CachedFlightEntry` contains `BaseFare` used for server-side price recalculation
+- [ ] GlobalAir pricing: `Math.Round(baseFare * 1.15m, 2)` verified by unit tests
+- [ ] BudgetWings pricing: `Math.Max(baseFare * 0.90m, 29.99m)` verified by unit tests
+- [ ] No client-supplied price values read or used in any use case
