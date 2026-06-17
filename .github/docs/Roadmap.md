@@ -4,7 +4,11 @@
 
 ---
 
-Delivery is vertical, by feature slice, layer by layer. Every phase produces **working, testable output** — no scaffolding-only phases. Each phase is small enough to build, test, and verify independently within 1-2 hours.
+Delivery is grouped by layer: backend and database work for both features (search, booking) completes first, then frontend work against the now-stable API contracts, then cross-cutting polish and verification last. Phase 1 (Domain Foundation through Exception Middleware) is already implemented and is listed here unchanged, as the fixed foundation everything else builds on.
+
+Each phase remains small enough to build, test, and verify independently within 1-2 hours, and still produces working, testable output — grouping by layer changes the *order*, not the per-phase rigor (build → test → exit criteria → commit still applies within each phase).
+
+**Important consequence of this ordering:** no feature is usable end-to-end until all frontend phases (3A-3F) finish. `Api_Contracts.md` is the only thing keeping the backend phases (2A-2F) and frontend phases in sync without a working UI to catch drift early — treat it as binding, not advisory, throughout Phase 2.
 
 ---
 
@@ -17,13 +21,13 @@ Delivery is vertical, by feature slice, layer by layer. Every phase produces **w
 * Domain interfaces: `IFlightProvider`, `IPricingStrategy`, `IBookingRepository`
 * Basic unit tests for entities and value objects
 
-**Exit criteria:** 
+**Exit criteria:**
 * Solution compiles successfully
 * All domain entities have proper validation
 * Unit tests pass for all domain logic
 * No dependencies on infrastructure or external libraries
 
-**Estimated effort:** 1-2 hours
+**Status:** ✅ Complete
 
 ---
 
@@ -43,7 +47,7 @@ Delivery is vertical, by feature slice, layer by layer. Every phase produces **w
 * MockFlightProvider returns valid Flight objects
 * No hardcoded provider selection logic (ready for DI)
 
-**Estimated effort:** 1 hour
+**Status:** ✅ Complete
 
 ---
 
@@ -62,7 +66,7 @@ Delivery is vertical, by feature slice, layer by layer. Every phase produces **w
 * Cache handles null/missing entries gracefully
 * All cache tests pass
 
-**Estimated effort:** 1 hour
+**Status:** ✅ Complete
 
 ---
 
@@ -83,7 +87,7 @@ Delivery is vertical, by feature slice, layer by layer. Every phase produces **w
 * CORS allows configured origins
 * DI container resolves all registered services
 
-**Estimated effort:** 1 hour
+**Status:** ✅ Complete
 
 ---
 
@@ -101,7 +105,7 @@ Delivery is vertical, by feature slice, layer by layer. Every phase produces **w
 * Exception details logged via Serilog
 * Tests verify error response structure
 
-**Estimated effort:** 1 hour
+**Status:** ✅ Complete
 
 ---
 
@@ -144,67 +148,7 @@ Delivery is vertical, by feature slice, layer by layer. Every phase produces **w
 
 ---
 
-## Phase 2C — Angular App Scaffold & Services
-
-**Deliverables:**
-* Angular standalone app structure
-* App routing configuration
-* `environment.ts` with API base URL
-* `FlightService` with `search()` method
-* HTTP interceptor for error handling
-* Airport registry as TypeScript const
-
-**Exit criteria:**
-* Angular app compiles and runs
-* FlightService makes HTTP calls to backend
-* Error interceptor catches and logs errors
-* Airport registry accessible throughout app
-
-**Estimated effort:** 1 hour
-
----
-
-## Phase 2D — Flight Search Form (Frontend)
-
-**Deliverables:**
-* `SearchFormComponent` with all 5 fields (origin, destination, date, travelers, class)
-* Reactive Forms with validators
-* Airport autocomplete/dropdown
-* Date picker with min date validation
-* Submit button with loading state
-
-**Exit criteria:**
-* Form validates all required fields
-* Form prevents invalid submissions (past dates, same origin/destination)
-* Form shows validation errors inline
-* Form disables submit during search
-* Component unit tests pass
-
-**Estimated effort:** 1.5 hours
-
----
-
-## Phase 2E — Flight Results Display (Frontend)
-
-**Deliverables:**
-* `FlightResultsComponent` with loading/empty/error states
-* `FlightCardComponent` displaying flight details
-* Sort dropdown (price, duration, departure time)
-* Client-side sorting using Angular Signals `computed`
-* Responsive layout for flight cards
-
-**Exit criteria:**
-* Results display after successful search
-* Sorting works without additional HTTP calls
-* Loading spinner shows during search
-* Empty state shows when no flights found
-* Error message shows on search failure
-
-**Estimated effort:** 1.5 hours
-
----
-
-## Phase 3A — Database Setup & Booking Entity
+## Phase 2C — Database Setup & Booking Entity
 
 **Deliverables:**
 * EF Core `SkyRouteDbContext` with `DbSet<Booking>`
@@ -224,7 +168,7 @@ Delivery is vertical, by feature slice, layer by layer. Every phase produces **w
 
 ---
 
-## Phase 3B — Booking Repository
+## Phase 2D — Booking Repository
 
 **Deliverables:**
 * `BookingRepository : IBookingRepository` implementation
@@ -242,7 +186,7 @@ Delivery is vertical, by feature slice, layer by layer. Every phase produces **w
 
 ---
 
-## Phase 3C — Create Booking Use Case (Backend)
+## Phase 2E — Create Booking Use Case (Backend)
 
 **Deliverables:**
 * `CreateBookingCommand` DTO with validation
@@ -266,7 +210,7 @@ Delivery is vertical, by feature slice, layer by layer. Every phase produces **w
 
 ---
 
-## Phase 3D — Create Booking API Controller
+## Phase 2F — Create Booking API Controller
 
 **Deliverables:**
 * `BookingsController` with `POST /api/bookings` endpoint
@@ -285,7 +229,71 @@ Delivery is vertical, by feature slice, layer by layer. Every phase produces **w
 
 ---
 
-## Phase 3E — Booking Detail View (Frontend)
+**Backend/Database exit gate:** every endpoint in `Api_Contracts.md` for Search and Booking is implemented, tested, and verifiable via a tool like Postman/curl/Swagger before Phase 3 begins. Treat this as a hard checkpoint — Phase 3 assumes these contracts are frozen.
+
+---
+
+## Phase 3A — Angular App Scaffold & Services
+
+**Deliverables:**
+* Angular standalone app structure
+* App routing configuration
+* `environment.ts` with API base URL
+* `FlightService` with `search()` method
+* HTTP interceptor for error handling
+* Airport registry as TypeScript const
+
+**Exit criteria:**
+* Angular app compiles and runs
+* FlightService makes HTTP calls to backend
+* Error interceptor catches and logs errors
+* Airport registry accessible throughout app
+
+**Estimated effort:** 1 hour
+
+---
+
+## Phase 3B — Flight Search Form (Frontend)
+
+**Deliverables:**
+* `SearchFormComponent` with all 5 fields (origin, destination, date, travelers, class)
+* Reactive Forms with validators
+* Airport autocomplete/dropdown
+* Date picker with min date validation
+* Submit button with loading state
+
+**Exit criteria:**
+* Form validates all required fields
+* Form prevents invalid submissions (past dates, same origin/destination)
+* Form shows validation errors inline
+* Form disables submit during search
+* Component unit tests pass
+
+**Estimated effort:** 1.5 hours
+
+---
+
+## Phase 3C — Flight Results Display (Frontend)
+
+**Deliverables:**
+* `FlightResultsComponent` with loading/empty/error states
+* `FlightCardComponent` displaying flight details
+* Sort dropdown (price, duration, departure time)
+* Client-side sorting using Angular Signals `computed`
+* Responsive layout for flight cards
+
+**Exit criteria:**
+* Results display after successful search
+* Sorting works without additional HTTP calls
+* Loading spinner shows during search
+* Empty state shows when no flights found
+* Error message shows on search failure
+
+**Estimated effort:** 1.5 hours
+
+---
+
+## Phase 3D — Booking Detail View (Frontend)
 
 **Deliverables:**
 * `BookingDetailComponent` displaying selected flight
@@ -304,7 +312,7 @@ Delivery is vertical, by feature slice, layer by layer. Every phase produces **w
 
 ---
 
-## Phase 3F — Passenger Form (Frontend)
+## Phase 3E — Passenger Form (Frontend)
 
 **Deliverables:**
 * `PassengerFormComponent` with all required fields
@@ -325,7 +333,7 @@ Delivery is vertical, by feature slice, layer by layer. Every phase produces **w
 
 ---
 
-## Phase 3G — Booking Confirmation (Frontend)
+## Phase 3F — Booking Confirmation (Frontend)
 
 **Deliverables:**
 * `BookingService.createBooking()` method
@@ -444,30 +452,28 @@ Delivery is vertical, by feature slice, layer by layer. Every phase produces **w
 
 ---
 
-## Implementation Order (within each phase)
+## Implementation Order (Revised)
 
 ```
-Domain → Application (use cases + validators) → Infrastructure (providers + repositories)
-       → API (controllers + middleware) → Frontend (services → components → routing)
+Phase 1 (done: 1A → 1B → 1C → 1D → 1E)
+Phase 2 — Backend & Database (both features): 2A → 2B → 2C → 2D → 2E → 2F
+Phase 3 — Frontend (both features): 3A → 3B → 3C → 3D → 3E → 3F
+Phase 4 — Cross-Cutting, Verification & Documentation: 4A → 4B → 4C → 4D → 4E
 ```
 
-Always follow this sequence to maintain Clean Architecture layer boundaries.
+Within Phase 2 and Phase 3, still respect Domain → Application → Infrastructure → API (Phase 2) and Services → Components → Routing (Phase 3) at the individual-phase level — the regrouping changes macro-ordering across phases, not the internal discipline of each phase.
 
 ---
 
 ## Summary
 
-**Total Phases:** 23 (down from 4)
+**Total Phases:** 23 (5 already complete in Phase 1, 18 remaining across Phases 2-4)
 
-**Estimated Total Effort:** ~27 hours
+**Estimated Remaining Effort:** ~21 hours (Phase 2: ~7h · Phase 3: ~7.5h · Phase 4: ~6h)
 
-**Benefits of Smaller Phases:**
-* Each phase is independently testable
-* Clear exit criteria for each increment
-* Easier to track progress
-* Simpler to debug and fix issues
-* Reduces risk of breaking changes
-* Better git commit history
-* Easier code reviews
+**Why this grouping, and what it trades away:**
+* Gains: full backend/DB stability and API-contract conformance before any UI work begins; frontend work proceeds against a frozen, fully-tested API surface with no backend churn mid-build.
+* Costs: no feature is usable end-to-end until Phase 3 completes — integration mismatches between backend and frontend (if `Api_Contracts.md` drifts or is incomplete) surface late, in Phase 3, rather than phase-by-phase as in the original vertical-slice ordering.
+* Mitigation: treat `Api_Contracts.md` as binding and complete before starting Phase 2. Do not let any Phase 2 phase improvise a response shape not already documented there.
 
-**Commit Strategy:** One commit per phase after all tests pass and exit criteria are met.
+**Commit Strategy:** One commit per micro-step within a phase (per the `implement-phase` skill); one branch per phase; full test suite run once per phase at the phase-level verification gate.

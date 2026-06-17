@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SkyRoute.API\SkyRoute.API.csproj" />
+    <ProjectReference Include="..\SkyRoute.Application\SkyRoute.Application.csproj" />
     <ProjectReference Include="..\SkyRoute.Domain\SkyRoute.Domain.csproj" />
     <ProjectReference Include="..\SkyRoute.Infrastructure\SkyRoute.Infrastructure.csproj" />
   </ItemGroup>
