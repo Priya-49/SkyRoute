@@ -1,3 +1,4 @@
+using SkyRoute.API.Middleware;
 using SkyRoute.Application.Interfaces;
 using SkyRoute.Domain.Interfaces;
 using SkyRoute.Infrastructure.Caching;
@@ -35,6 +36,7 @@ builder.Services.AddSingleton<IFlightSearchCache, FlightSearchCache>();
 var app = builder.Build();
 
 app.UseSerilogRequestLogging();
+app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseRouting();
 app.UseCors(CorsPolicyName);
 
