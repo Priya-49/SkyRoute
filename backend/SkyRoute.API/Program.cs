@@ -3,8 +3,17 @@ using SkyRoute.Domain.Interfaces;
 using SkyRoute.Infrastructure.Caching;
 using SkyRoute.Infrastructure.Pricing;
 using SkyRoute.Infrastructure.Providers;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, loggerConfiguration) =>
+{
+    loggerConfiguration
+        .ReadFrom.Configuration(context.Configuration)
+        .WriteTo.Console()
+        .WriteTo.File("logs/skyroute-.log", rollingInterval: RollingInterval.Day);
+});
 
 builder.Services.AddRouting();
 builder.Services.AddMemoryCache();
@@ -15,6 +24,7 @@ builder.Services.AddSingleton<IFlightSearchCache, FlightSearchCache>();
 
 var app = builder.Build();
 
+app.UseSerilogRequestLogging();
 app.UseRouting();
 
 app.MapGet("/", () => Results.Ok("SkyRoute API is running."));
