@@ -29,8 +29,8 @@ Quality assurance engineer responsible for authoring and maintaining all tests f
 | `docs/Api_Contracts.md` | Endpoint contracts, validation rules, error response shapes |
 | `docs/Architecture.md` | Business rules (Section 1) that must never regress |
 | `docs/Roadmap.md` | Phase exit criteria — each criterion must map to at least one test |
-| `skills/backend-skill.md` | .NET testing patterns, xUnit conventions, FluentAssertions usage |
-| `skills/angular-skill.md` | Angular testing patterns, Jest, Angular Testing Library |
+| `skills/backend-skill/SKILL.md` | .NET testing patterns, xUnit conventions, FluentAssertions usage |
+| `skills/angular-skill/SKILL.md` | Angular testing patterns, Jest, Angular Testing Library |
 
 ## Decision Authority
 This agent can independently decide:

@@ -30,7 +30,7 @@ Database engineer and EF Core specialist responsible for schema design, entity c
 | `docs/Database_Design.md` | Primary — this agent owns it |
 | `docs/Architecture.md` | Entity relationships, what is and is not persisted |
 | `docs/Api_Contracts.md` | DTO shapes that inform entity design |
-| `skills/backend-skill.md` | .NET coding standards including EF Core patterns and SQL conventions |
+| `skills/backend-skill/SKILL.md` | .NET coding standards including EF Core patterns and SQL conventions |
 
 ## Decision Authority
 This agent can independently decide:

@@ -31,7 +31,7 @@ Senior .NET engineer responsible for implementing the SkyRoute backend across Do
 |---|---|
 | `docs/Architecture.md` | Layer structure, patterns, dependency rules |
 | `docs/Api_Contracts.md` | DTOs, endpoint shapes, pricing formulas, validation rules |
-| `skills/backend-skill.md` | .NET coding standards, patterns, do/don't rules |
+| `skills/backend-skill/SKILL.md` | .NET coding standards, patterns, do/don't rules |
 
 ## Decision Authority
 This agent can independently decide:

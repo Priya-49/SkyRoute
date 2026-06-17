@@ -1,13 +1,13 @@
 ---
-agent: agent
-description: Implement a SkyRoute roadmap phase end-to-end in small, tested, committed increments — branch, implement, verify, push, return to main.
+name: implement-phase
+description: Implement a SkyRoute roadmap phase end-to-end in small, tested, committed increments — branch, implement, verify, push, return to main. Use when the user asks to implement, build, or work on a specific roadmap phase (e.g. "implement phase 1A", "build out 2C", "do phase 3D").
 ---
 
 # Implement Phase
 
-The argument supplied after this command identifies a phase from [Roadmap.md](../../Roadmap.md), in any of these forms: `1A`, `Phase 1A`, `2C`, `Phase 3D`. Strip the word "Phase" and surrounding whitespace before matching.
+The argument supplied after invoking this skill identifies a phase from [Roadmap.md](../../docs/Roadmap.md), in any of these forms: `1A`, `Phase 1A`, `2C`, `Phase 3D`. Strip the word "Phase" and surrounding whitespace before matching.
 
-This prompt takes a single roadmap phase from documented to implemented, tested, committed, and pushed, in small verifiable steps, then returns to `main` so the next phase always starts clean.
+This skill takes a single roadmap phase from documented to implemented, tested, committed, and pushed, in small verifiable steps, then returns to `main` so the next phase always starts clean.
 
 ---
 
@@ -26,11 +26,9 @@ Do not begin implementation until the phase's Deliverables and Exit Criteria are
 
 ---
 
-## Step 2 — Plan Micro-Steps From Deliverables
+## Step 2 — Sequence the Deliverables
 
-Roadmap.md phases are already scoped to ~1-2 hours and already enumerate concrete deliverables — treat each deliverable bullet as one micro-step by default. Do **not** re-decompose further unless a single bullet is clearly compound (e.g. "Both pricing strategies + unit tests" → split into implementation and test-writing).
-
-List the micro-steps before writing any code, in implementation order (Domain → Application → Infrastructure → API → Frontend). For each, name what gets built and which exit-criteria bullet(s) it contributes to. If the phase has 3 deliverables, expect roughly 3 micro-steps — don't over-decompose a phase that's already small.
+Execute the phase's Deliverables list from `Roadmap.md` in order, one bullet per build → test → commit cycle (Step 4). Each bullet is its own micro-step by default — split a single bullet into two micro-steps only when it bundles two distinct testable units (e.g. "Both pricing strategies + unit tests" → one micro-step for the strategy implementations, one for the tests). For each micro-step, note which Exit Criteria bullet(s) it's expected to satisfy, so Step 4.5's review has something concrete to check against.
 
 ---
 
@@ -110,7 +108,7 @@ git push -u origin <branch>
 git checkout main
 git pull
 ```
-Confirm `git branch --show-current` reports `main` before finishing. Leave the feature branch intact (already pushed) — merging/PR review is outside this prompt's scope.
+Confirm `git branch --show-current` reports `main` before finishing. Leave the feature branch intact (already pushed) — merging/PR review is outside this skill's scope.
 
 ---
 

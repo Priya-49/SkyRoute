@@ -31,8 +31,8 @@ Senior Angular engineer responsible for implementing the SkyRoute frontend — s
 |---|---|
 | `docs/Architecture.md` | Component structure, state management approach, routing |
 | `docs/Api_Contracts.md` | TypeScript interfaces, endpoint URLs, request/response shapes |
-| `skills/angular-skill.md` | Angular coding standards, signal patterns, do/don't rules |
-| `skills/api-design-skill.md` | HTTP service patterns, error handling |
+| `skills/angular-skill/SKILL.md` | Angular coding standards, signal patterns, do/don't rules |
+| `skills/api-design-skill/SKILL.md` | HTTP service patterns, error handling |
 
 ## Decision Authority
 This agent can independently decide:
