@@ -70,4 +70,26 @@ public sealed class FlightsControllerEndpointTests : IClassFixture<WebApplicatio
         Assert.Matches(@"^\d+\.\d{2}$", ppp.GetString()!);
         Assert.Matches(@"^\d+\.\d{2}$", total.GetString()!);
     }
+
+    [Fact]
+    public async Task Search_ReturnsBadRequest_ForInvalidRequest()
+    {
+        using var client = _factory.CreateClient();
+        var request = new
+        {
+            origin = "BAD",
+            destination = "LHR",
+            departureDate = DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(15)),
+            passengers = 2,
+            cabinClass = "Economy"
+        };
+
+        var response = await client.PostAsJsonAsync("/api/flights/search", request);
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.True(doc.RootElement.TryGetProperty("errors", out var errors));
+        Assert.True(errors.TryGetProperty("Origin", out _));
+    }
 }

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using SkyRoute.API.Contracts.Flights;
 using SkyRoute.Application.Flights;
+using FluentValidation;
 
 namespace SkyRoute.API.Controllers;
 
@@ -9,10 +10,12 @@ namespace SkyRoute.API.Controllers;
 public sealed class FlightsController : ControllerBase
 {
     private readonly SearchFlightsUseCase _searchFlightsUseCase;
+    private readonly IValidator<SearchFlightsQuery> _validator;
 
-    public FlightsController(SearchFlightsUseCase searchFlightsUseCase)
+    public FlightsController(SearchFlightsUseCase searchFlightsUseCase, IValidator<SearchFlightsQuery> validator)
     {
         _searchFlightsUseCase = searchFlightsUseCase ?? throw new ArgumentNullException(nameof(searchFlightsUseCase));
+        _validator = validator ?? throw new ArgumentNullException(nameof(validator));
     }
 
     [HttpPost("search")]
@@ -26,6 +29,17 @@ public sealed class FlightsController : ControllerBase
             Passengers = request.Passengers,
             CabinClass = request.CabinClass
         };
+
+        var validationResult = await _validator.ValidateAsync(query, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            foreach (var error in validationResult.Errors)
+            {
+                ModelState.AddModelError(error.PropertyName, error.ErrorMessage);
+            }
+
+            return ValidationProblem(ModelState);
+        }
 
         var results = await _searchFlightsUseCase.ExecuteAsync(query, cancellationToken);
         var response = new SearchFlightsResponse
