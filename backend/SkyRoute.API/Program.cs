@@ -6,6 +6,8 @@ using SkyRoute.Infrastructure.Providers;
 using SkyRoute.Application.Flights;
 using FluentValidation;
 using Serilog;
+using Microsoft.EntityFrameworkCore;
+using SkyRoute.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 const string CorsPolicyName = "SkyRouteCors";
@@ -22,6 +24,10 @@ builder.Services.AddRouting();
 builder.Services.AddControllers();
 builder.Services.AddMemoryCache();
 builder.Services.AddHealthChecks();
+builder.Services.AddDbContext<SkyRouteDbContext>(options =>
+{
+    options.UseSqlServer(builder.Configuration.GetConnectionString("SkyRouteDatabase"));
+});
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
 builder.Services.AddCors(options =>
 {

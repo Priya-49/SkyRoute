@@ -3,6 +3,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using SkyRoute.Application.Interfaces;
 using SkyRoute.Domain.Interfaces;
+using SkyRoute.Infrastructure.Data;
 
 namespace SkyRoute.Tests.API;
 
@@ -48,10 +49,13 @@ public sealed class ApiConfigurationTests : IClassFixture<WebApplicationFactory<
         var pricingStrategies = services.GetServices<SkyRoute.Application.Interfaces.IPricingStrategy>();
         var cache = services.GetService<IFlightSearchCache>();
         var memoryCache = services.GetService<IMemoryCache>();
+        var dbContext = services.GetService<SkyRouteDbContext>();
 
         Assert.Equal(2, providers.Count());
         Assert.Equal(2, pricingStrategies.Count());
         Assert.NotNull(cache);
         Assert.NotNull(memoryCache);
+        Assert.NotNull(dbContext);
+        Assert.Contains("SqlServer", dbContext!.Database.ProviderName, StringComparison.OrdinalIgnoreCase);
     }
 }
