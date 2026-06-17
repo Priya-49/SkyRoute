@@ -7,15 +7,20 @@ namespace SkyRoute.Application.Flights;
 
 public sealed class SearchFlightsUseCase
 {
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(30);
+
     private readonly IEnumerable<IFlightProvider> _providers;
     private readonly IValidator<SearchFlightsQuery> _validator;
+    private readonly Interfaces.IFlightSearchCache _cache;
 
     public SearchFlightsUseCase(
         IEnumerable<IFlightProvider> providers,
-        IValidator<SearchFlightsQuery> validator)
+        IValidator<SearchFlightsQuery> validator,
+        Interfaces.IFlightSearchCache cache)
     {
         _providers = providers ?? throw new ArgumentNullException(nameof(providers));
         _validator = validator ?? throw new ArgumentNullException(nameof(validator));
+        _cache = cache ?? throw new ArgumentNullException(nameof(cache));
     }
 
     public async Task<IReadOnlyCollection<FlightResultDto>> ExecuteAsync(
@@ -50,25 +55,43 @@ public sealed class SearchFlightsUseCase
         var providerResults = await Task.WhenAll(providerTasks);
         var flights = providerResults.SelectMany(result => result);
 
-        return flights
-            .Select(flight =>
+        var utcNow = DateTime.UtcNow;
+        var results = new List<FlightResultDto>();
+        foreach (var flight in flights)
+        {
+            var flightId = Guid.NewGuid();
+            var pricePerPassenger = flight.BaseFare;
+            var totalPrice = pricePerPassenger * query.Passengers;
+            _cache.Store(
+                flightId,
+                new Models.CachedFlightEntry(
+                    flightId,
+                    flight.Provider,
+                    flight.FlightNumber,
+                    flight.Origin,
+                    flight.Destination,
+                    flight.DepartureTime,
+                    flight.ArrivalTime,
+                    flight.CabinClass,
+                    flight.BaseFare,
+                    utcNow.Add(CacheTtl)));
+
+            results.Add(new FlightResultDto
             {
-                var pricePerPassenger = flight.BaseFare;
-                return new FlightResultDto
-                {
-                    FlightId = Guid.NewGuid(),
-                    Provider = flight.Provider,
-                    FlightNumber = flight.FlightNumber,
-                    Origin = flight.Origin.Code,
-                    Destination = flight.Destination.Code,
-                    DepartureTime = flight.DepartureTime,
-                    ArrivalTime = flight.ArrivalTime,
-                    DurationMinutes = (int)(flight.ArrivalTime - flight.DepartureTime).TotalMinutes,
-                    CabinClass = flight.CabinClass,
-                    PricePerPassenger = pricePerPassenger,
-                    TotalPrice = pricePerPassenger * query.Passengers
-                };
-            })
-            .ToArray();
+                FlightId = flightId,
+                Provider = flight.Provider,
+                FlightNumber = flight.FlightNumber,
+                Origin = flight.Origin.Code,
+                Destination = flight.Destination.Code,
+                DepartureTime = flight.DepartureTime,
+                ArrivalTime = flight.ArrivalTime,
+                DurationMinutes = (int)(flight.ArrivalTime - flight.DepartureTime).TotalMinutes,
+                CabinClass = flight.CabinClass,
+                PricePerPassenger = pricePerPassenger,
+                TotalPrice = totalPrice
+            });
+        }
+
+        return results;
     }
 }

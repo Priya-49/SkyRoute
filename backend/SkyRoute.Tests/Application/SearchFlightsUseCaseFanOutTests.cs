@@ -1,5 +1,7 @@
 using FluentValidation;
 using SkyRoute.Application.Flights;
+using SkyRoute.Application.Interfaces;
+using SkyRoute.Application.Models;
 using SkyRoute.Domain.Entities;
 using SkyRoute.Domain.Interfaces;
 using SkyRoute.Domain.ValueObjects;
@@ -14,7 +16,7 @@ public sealed class SearchFlightsUseCaseFanOutTests
         var providerOne = new CountingProvider("GlobalAir", 180m);
         var providerTwo = new CountingProvider("BudgetWings", 120m);
         var validator = new SearchFlightsQueryValidator();
-        var useCase = new SearchFlightsUseCase(new IFlightProvider[] { providerOne, providerTwo }, validator);
+        var useCase = new SearchFlightsUseCase(new IFlightProvider[] { providerOne, providerTwo }, validator, new NoOpCache());
         var query = BuildQuery();
 
         var results = await useCase.ExecuteAsync(query);
@@ -28,7 +30,7 @@ public sealed class SearchFlightsUseCaseFanOutTests
     public async Task ExecuteAsync_ThrowsValidationException_ForInvalidQuery()
     {
         var provider = new CountingProvider("GlobalAir", 180m);
-        var useCase = new SearchFlightsUseCase(new IFlightProvider[] { provider }, new SearchFlightsQueryValidator());
+        var useCase = new SearchFlightsUseCase(new IFlightProvider[] { provider }, new SearchFlightsQueryValidator(), new NoOpCache());
         var query = BuildQuery();
         query.Origin = "BAD";
 
@@ -78,5 +80,15 @@ public sealed class SearchFlightsUseCaseFanOutTests
 
             return Task.FromResult<IReadOnlyCollection<Flight>>(new[] { flight });
         }
+
+    }
+
+    private sealed class NoOpCache : IFlightSearchCache
+    {
+        public void Store(Guid flightId, CachedFlightEntry entry)
+        {
+        }
+
+        public CachedFlightEntry? Get(Guid flightId) => null;
     }
 }
