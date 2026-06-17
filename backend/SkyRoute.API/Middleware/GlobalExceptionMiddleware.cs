@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using SkyRoute.API.Exceptions;
 
 namespace SkyRoute.API.Middleware;
 
@@ -25,29 +26,58 @@ public sealed class GlobalExceptionMiddleware
         catch (Exception exception)
         {
             _logger.LogError(exception, "Unhandled exception while processing request.");
-            await WriteServerErrorAsync(context);
+            await WriteProblemDetailsAsync(context, exception);
         }
     }
 
-    private static async Task WriteServerErrorAsync(HttpContext context)
+    private static async Task WriteProblemDetailsAsync(HttpContext context, Exception exception)
     {
         if (context.Response.HasStarted)
         {
             return;
         }
 
+        var (statusCode, title, detail, errors) = exception switch
+        {
+            ValidationException validationException => (
+                StatusCodes.Status400BadRequest,
+                "Validation Failed",
+                validationException.Message,
+                validationException.Errors),
+            NotFoundException notFoundException => (
+                StatusCodes.Status404NotFound,
+                "Not Found",
+                notFoundException.Message,
+                (IDictionary<string, string[]>?)null),
+            _ => (
+                StatusCodes.Status500InternalServerError,
+                "Internal Server Error",
+                "An unexpected error occurred. Please try again.",
+                (IDictionary<string, string[]>?)null)
+        };
+
         context.Response.Clear();
-        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.StatusCode = statusCode;
         context.Response.ContentType = "application/problem+json";
 
         var problem = new ProblemDetails
         {
             Type = Rfc7807Type,
-            Title = "Internal Server Error",
-            Status = StatusCodes.Status500InternalServerError,
-            Detail = "An unexpected error occurred. Please try again."
+            Title = title,
+            Status = statusCode,
+            Detail = detail
         };
 
-        await context.Response.WriteAsync(JsonSerializer.Serialize(problem));
+        var payload = errors is null
+            ? JsonSerializer.Serialize(problem)
+            : JsonSerializer.Serialize(new ValidationProblemDetails(errors)
+            {
+                Type = Rfc7807Type,
+                Title = title,
+                Status = statusCode,
+                Detail = detail
+            });
+
+        await context.Response.WriteAsync(payload);
     }
 }

@@ -1,3 +1,4 @@
+using SkyRoute.API.Exceptions;
 using SkyRoute.API.Middleware;
 using SkyRoute.Application.Interfaces;
 using SkyRoute.Domain.Interfaces;
@@ -42,6 +43,15 @@ app.UseCors(CorsPolicyName);
 
 app.MapGet("/", () => Results.Ok("SkyRoute API is running."));
 app.MapHealthChecks("/health");
+if (app.Environment.IsDevelopment())
+{
+    app.MapGet("/throw/validation", (HttpContext _) => throw new ValidationException(new Dictionary<string, string[]>
+    {
+        ["origin"] = ["Origin airport code is not recognised."]
+    }));
+    app.MapGet("/throw/not-found", (HttpContext _) => throw new NotFoundException());
+    app.MapGet("/throw/server", (HttpContext _) => throw new Exception("Unexpected server error"));
+}
 
 app.Run();
 
