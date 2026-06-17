@@ -1,8 +1,10 @@
+using SkyRoute.Application.Models;
+
 namespace SkyRoute.Application.Interfaces;
 
 public interface IFlightSearchCache
 {
-    void Store(Guid flightId, object entry);
+    void Store(Guid flightId, CachedFlightEntry entry);
 
-    object? Get(Guid flightId);
+    CachedFlightEntry? Get(Guid flightId);
 }
