@@ -17,6 +17,10 @@ public sealed class CreateBookingCommandValidator : AbstractValidator<CreateBook
             .NotEmpty()
             .WithMessage("Flight id is required.");
 
+        RuleFor(x => x.UserId)
+            .NotEmpty()
+            .WithMessage("Authenticated user id is required.");
+
         RuleFor(x => x.Origin)
             .NotEmpty()
             .Length(3)
