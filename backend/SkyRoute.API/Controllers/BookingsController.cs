@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using SkyRoute.API.Contracts.Bookings;
 using SkyRoute.Application.Bookings;
@@ -20,7 +21,7 @@ public sealed class BookingsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize]
+    [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
     public async Task<IActionResult> Create([FromBody] CreateBookingRequest request, CancellationToken cancellationToken)
     {
         var command = new CreateBookingCommand
