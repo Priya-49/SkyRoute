@@ -113,6 +113,7 @@ public sealed class CreateBookingUseCaseCoreTests
         new()
         {
             FlightId = flightId,
+            UserId = Guid.NewGuid(),
             Origin = "JFK",
             Destination = "LHR",
             Passengers = 2,
@@ -176,6 +177,9 @@ public sealed class CreateBookingUseCaseCoreTests
 
         public Task<Booking?> GetByReferenceAsync(BookingReference referenceCode, CancellationToken cancellationToken = default) =>
             Task.FromResult(_byReference.TryGetValue(referenceCode.Value, out var booking) ? booking : null);
+
+        public Task<IReadOnlyList<Booking>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Booking>>([]);
     }
 
     private sealed class FixedPricing : SkyRoute.Application.Interfaces.IPricingStrategy

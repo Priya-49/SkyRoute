@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using SkyRoute.Application.Interfaces;
+using SkyRoute.Domain.Entities;
 using SkyRoute.Domain.Interfaces;
 using SkyRoute.Infrastructure.Data;
 
@@ -50,12 +51,22 @@ public sealed class ApiConfigurationTests : IClassFixture<WebApplicationFactory<
         var cache = services.GetService<IFlightSearchCache>();
         var memoryCache = services.GetService<IMemoryCache>();
         var dbContext = services.GetService<SkyRouteDbContext>();
+        var users = services.GetService<IUserRepository>();
+        var refreshTokens = services.GetService<IRefreshTokenRepository>();
+        var tokenService = services.GetService<ITokenService>();
+        var passwordHasher = services.GetService<SkyRoute.Application.Interfaces.IPasswordHasher>();
+        var aspNetHasher = services.GetService<Microsoft.AspNetCore.Identity.IPasswordHasher<User>>();
 
         Assert.Equal(2, providers.Count());
         Assert.Equal(2, pricingStrategies.Count());
         Assert.NotNull(cache);
         Assert.NotNull(memoryCache);
         Assert.NotNull(dbContext);
+        Assert.NotNull(users);
+        Assert.NotNull(refreshTokens);
+        Assert.NotNull(tokenService);
+        Assert.NotNull(passwordHasher);
+        Assert.NotNull(aspNetHasher);
         Assert.Contains("SqlServer", dbContext!.Database.ProviderName, StringComparison.OrdinalIgnoreCase);
     }
 }
