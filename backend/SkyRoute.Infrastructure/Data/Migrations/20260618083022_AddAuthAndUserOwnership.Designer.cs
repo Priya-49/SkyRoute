@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SkyRoute.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using SkyRoute.Infrastructure.Data;
 namespace SkyRoute.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(SkyRouteDbContext))]
-    partial class SkyRouteDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260618083022_AddAuthAndUserOwnership")]
+    partial class AddAuthAndUserOwnership
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

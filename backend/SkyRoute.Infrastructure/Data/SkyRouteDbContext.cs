@@ -12,6 +12,10 @@ public sealed class SkyRouteDbContext : DbContext
 
     public DbSet<Booking> Bookings => Set<Booking>();
 
+    public DbSet<User> Users => Set<User>();
+
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(SkyRouteDbContext).Assembly);

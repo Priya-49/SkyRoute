@@ -23,8 +23,8 @@ public sealed class BookingConfiguration : IEntityTypeConfiguration<Booking>
 
         builder.HasIndex(b => b.ReferenceCode).IsUnique();
 
-        builder.Property<Guid?>("FlightId");
-        builder.HasIndex("FlightId");
+        builder.Property(b => b.UserId).IsRequired();
+        builder.HasIndex(b => b.UserId);
 
         builder.Property(b => b.Provider).IsRequired().HasMaxLength(50);
         builder.Property(b => b.FlightNumber).IsRequired().HasMaxLength(20);
@@ -45,5 +45,10 @@ public sealed class BookingConfiguration : IEntityTypeConfiguration<Booking>
             .IsRequired()
             .HasConversion<string>()
             .HasMaxLength(20);
+
+        builder.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(b => b.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
