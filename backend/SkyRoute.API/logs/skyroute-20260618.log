@@ -1,0 +1,46 @@
+2026-06-18 10:15:52.071 +05:30 [ERR] Hosting failed to start
+System.IO.IOException: Failed to bind to address http://127.0.0.1:5169: address already in use.
+ ---> Microsoft.AspNetCore.Connections.AddressInUseException: Only one usage of each socket address (protocol/network address/port) is normally permitted.
+ ---> System.Net.Sockets.SocketException (10048): Only one usage of each socket address (protocol/network address/port) is normally permitted.
+   at System.Net.Sockets.Socket.UpdateStatusAfterSocketErrorAndThrowException(SocketError error, Boolean disconnectOnFailure, String callerName)
+   at System.Net.Sockets.Socket.DoBind(EndPoint endPointSnapshot, SocketAddress socketAddress)
+   at System.Net.Sockets.Socket.Bind(EndPoint localEP)
+   at Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.SocketTransportOptions.CreateDefaultBoundListenSocket(EndPoint endpoint)
+   at Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.SocketConnectionListener.Bind()
+   --- End of inner exception stack trace ---
+   at Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.SocketConnectionListener.Bind()
+   at Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.SocketTransportFactory.BindAsync(EndPoint endpoint, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure.TransportManager.BindAsync(EndPoint endPoint, ConnectionDelegate connectionDelegate, EndpointConfig endpointConfig, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerImpl.<>c__DisplayClass28_0`1.<<StartAsync>g__OnBind|0>d.MoveNext()
+--- End of stack trace from previous location ---
+   at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.AddressBinder.BindEndpointAsync(ListenOptions endpoint, AddressBindContext context, CancellationToken cancellationToken)
+   --- End of inner exception stack trace ---
+   at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.AddressBinder.BindEndpointAsync(ListenOptions endpoint, AddressBindContext context, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.LocalhostListenOptions.BindAsync(AddressBindContext context, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.Internal.AddressBinder.AddressesStrategy.BindAsync(AddressBindContext context, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerImpl.BindAsync(CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerImpl.StartAsync[TContext](IHttpApplication`1 application, CancellationToken cancellationToken)
+   at Microsoft.AspNetCore.Hosting.GenericWebHostService.StartAsync(CancellationToken cancellationToken)
+   at Microsoft.Extensions.Hosting.Internal.Host.<StartAsync>b__14_1(IHostedService service, CancellationToken token)
+   at Microsoft.Extensions.Hosting.Internal.Host.ForeachService[T](IEnumerable`1 services, CancellationToken token, Boolean concurrent, Boolean abortOnFirstException, List`1 exceptions, Func`3 operation)
+2026-06-18 10:17:28.708 +05:30 [INF] HTTP GET / responded 200 in 59.4387 ms
+2026-06-18 10:17:28.795 +05:30 [INF] HTTP GET /favicon.ico responded 404 in 3.1031 ms
+2026-06-18 10:20:37.024 +05:30 [INF] HTTP GET / responded 200 in 91.8518 ms
+2026-06-18 10:22:23.801 +05:30 [INF] HTTP POST /api/flights/search responded 400 in 439.8465 ms
+2026-06-18 10:26:52.904 +05:30 [INF] HTTP POST /api/flights/search responded 400 in 13.4889 ms
+2026-06-18 10:27:07.056 +05:30 [INF] HTTP POST /api/flights/search responded 400 in 10.5996 ms
+2026-06-18 10:27:23.290 +05:30 [INF] HTTP POST /api/flights/search responded 400 in 7.2890 ms
+2026-06-18 10:28:39.071 +05:30 [INF] HTTP POST /api/flights/search responded 200 in 56.5558 ms
+2026-06-18 10:30:07.347 +05:30 [INF] HTTP POST /api/flights/search responded 400 in 1.2036 ms
+2026-06-18 10:32:25.524 +05:30 [INF] HTTP GET /swagger responded 301 in 33.2426 ms
+2026-06-18 10:32:25.766 +05:30 [INF] HTTP GET /swagger/index.html responded 200 in 147.0139 ms
+2026-06-18 10:32:25.799 +05:30 [INF] HTTP GET /swagger/index.js responded 200 in 1.7323 ms
+2026-06-18 10:32:25.840 +05:30 [INF] HTTP GET /swagger/index.css responded 200 in 47.2804 ms
+2026-06-18 10:32:25.840 +05:30 [INF] HTTP GET /swagger/swagger-ui.css responded 200 in 43.3917 ms
+2026-06-18 10:32:25.861 +05:30 [INF] HTTP GET /swagger/swagger-ui-standalone-preset.js responded 200 in 65.3715 ms
+2026-06-18 10:32:25.862 +05:30 [INF] HTTP GET /swagger/swagger-ui-bundle.js responded 200 in 64.5936 ms
+2026-06-18 10:32:25.972 +05:30 [INF] HTTP GET /swagger/favicon-32x32.png responded 200 in 3.1647 ms
+2026-06-18 10:32:26.161 +05:30 [INF] HTTP GET /swagger/v1/swagger.json responded 200 in 200.3112 ms
+2026-06-18 10:47:31.723 +05:30 [INF] HTTP POST /api/Bookings responded 404 in 286.2875 ms
+2026-06-18 10:49:54.831 +05:30 [INF] HTTP POST /api/Bookings responded 404 in 15.8012 ms
+2026-06-18 10:52:35.967 +05:30 [INF] HTTP POST /api/Flights/search responded 200 in 61.7104 ms
