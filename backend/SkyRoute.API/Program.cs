@@ -1,4 +1,7 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.IdentityModel.Tokens;
 using SkyRoute.Application.Interfaces;
 using SkyRoute.Domain.Interfaces;
 using SkyRoute.Infrastructure.Caching;
@@ -46,6 +49,27 @@ builder.Services
     })
     .AddEntityFrameworkStores<SkyRouteDbContext>()
     .AddDefaultTokenProviders();
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        var key = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("Missing JWT key configuration.");
+        var issuer = builder.Configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("Missing JWT issuer configuration.");
+        var audience = builder.Configuration["Jwt:Audience"] ?? throw new InvalidOperationException("Missing JWT audience configuration.");
+
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = issuer,
+            ValidAudience = audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
+            ClockSkew = TimeSpan.Zero
+        };
+    });
+builder.Services.AddAuthorization();
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
 builder.Services.AddCors(options =>
 {
@@ -75,6 +99,8 @@ app.UseSwagger();
 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "SkyRoute API v1"));
 app.UseRouting();
 app.UseCors(CorsPolicyName);
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 app.MapGet("/", () => Results.Ok("SkyRoute API is running."));
