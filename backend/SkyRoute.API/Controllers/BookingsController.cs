@@ -114,9 +114,9 @@ public sealed class BookingsController : ControllerBase
         }
     }
 
-    [HttpGet("mine")]
+    [HttpGet("me")]
     [Authorize]
-    public async Task<IActionResult> Mine(CancellationToken cancellationToken)
+    public async Task<IActionResult> Me(CancellationToken cancellationToken)
     {
         if (!TryGetUserId(out var userId))
         {
