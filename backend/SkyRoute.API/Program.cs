@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using SkyRoute.Application.Interfaces;
 using SkyRoute.Domain.Interfaces;
 using SkyRoute.Infrastructure.Caching;
@@ -34,6 +35,17 @@ builder.Services.AddDbContext<SkyRouteDbContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("SkyRouteDatabase"));
 });
+builder.Services
+    .AddIdentity<ApplicationUser, IdentityRole>(options =>
+    {
+        options.User.RequireUniqueEmail = true;
+        options.Password.RequiredLength = 8;
+        options.Password.RequireUppercase = true;
+        options.Password.RequireDigit = true;
+        options.Password.RequireNonAlphanumeric = true;
+    })
+    .AddEntityFrameworkStores<SkyRouteDbContext>()
+    .AddDefaultTokenProviders();
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
 builder.Services.AddCors(options =>
 {
