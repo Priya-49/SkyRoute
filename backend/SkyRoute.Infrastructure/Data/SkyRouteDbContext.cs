@@ -1,10 +1,9 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using SkyRoute.Domain.Entities;
 
 namespace SkyRoute.Infrastructure.Data;
 
-public sealed class SkyRouteDbContext : IdentityDbContext<ApplicationUser>
+public sealed class SkyRouteDbContext : DbContext
 {
     public SkyRouteDbContext(DbContextOptions<SkyRouteDbContext> options)
         : base(options)
