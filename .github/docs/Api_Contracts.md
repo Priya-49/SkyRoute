@@ -14,14 +14,77 @@
 | Decimal format | String with 2 decimal places — `"320.00"` |
 | Currency | `USD` (all prices) — future multi-currency support via `currency` field |
 | Error format | RFC 7807 ProblemDetails |
-| HTTP success codes | `200 OK` (search), `201 Created` (booking) |
-| HTTP error codes | `400` validation, `404` not found, `500` server error |
+| HTTP success codes | `200 OK` (search, auth), `201 Created` (booking) |
+| HTTP error codes | `400` validation, `401` unauthorized, `404` not found, `500` server error |
+| Authentication | JWT Bearer token — required on `POST /api/bookings` only |
 
 ---
 
 ## 2. Endpoints
 
-### 2.1 POST `/api/flights/search`
+### 2.1 POST `/api/auth/register`
+
+Register a new user account.
+
+#### Request Body
+
+```json
+{
+  "email": "jane.doe@example.com",
+  "password": "P@ssw0rd123!"
+}
+```
+
+#### Request Field Validation
+
+| Field | Type | Rules |
+|---|---|---|
+| `email` | `string` | Required. Valid email format. Max 320 characters. Must be unique — returns `400` if already registered. |
+| `password` | `string` | Required. Min 8 characters. Must contain at least one uppercase letter, one digit, and one special character. |
+
+#### Response Body — `200 OK`
+
+```json
+{
+  "email": "jane.doe@example.com",
+  "message": "Registration successful."
+}
+```
+
+---
+
+### 2.2 POST `/api/auth/login`
+
+Authenticate and obtain a JWT bearer token.
+
+#### Request Body
+
+```json
+{
+  "email": "jane.doe@example.com",
+  "password": "P@ssw0rd123!"
+}
+```
+
+#### Response Body — `200 OK`
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expiresAt": "2026-08-15T10:00:00"
+}
+```
+
+| Field | Notes |
+|---|---|
+| `token` | Signed JWT bearer token. Client must include this in the `Authorization: Bearer <token>` header for protected endpoints. |
+| `expiresAt` | UTC datetime when the token expires. Configured via `Jwt:ExpiryMinutes` in `appsettings.json` (default: 60 minutes). |
+
+Returns `401 Unauthorized` with no body if credentials are invalid.
+
+---
+
+### 2.3 POST `/api/flights/search`
 
 Search for available flights across all providers.
 
@@ -108,9 +171,15 @@ If no flights match, return `200 OK` with an empty `results` array — not a `40
 
 ---
 
-### 2.2 POST `/api/bookings`
+### 2.4 POST `/api/bookings`
 
 Create a booking for a selected flight.
+
+> **Authentication required.** Include the JWT token from `/api/auth/login` in the request header:
+> ```
+> Authorization: Bearer <token>
+> ```
+> Requests without a valid token return `401 Unauthorized`.
 
 #### Request Body
 
@@ -221,6 +290,21 @@ All errors follow RFC 7807 ProblemDetails format.
 }
 ```
 
+### 401 — Unauthorized
+
+Returned when `POST /api/bookings` is called without a valid JWT bearer token, or with an expired/invalid token.
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc7807",
+  "title": "Unauthorized",
+  "status": 401,
+  "detail": "Authentication is required to complete this booking. Please log in."
+}
+```
+
+**Client handling:** The Angular `ErrorInterceptor` must intercept `401` responses and redirect the user to the login page (`/login`), preserving the current route as a `returnUrl` query parameter so the user is sent back after successful authentication.
+
 #### 404 — Flight No Longer Available (Cache Expired)
 
 Returned when `POST /api/bookings` is called with a `flightId` that is not present in the server-side cache (either expired after 30 minutes or never existed).
@@ -253,6 +337,16 @@ No stack traces or internal details are exposed in `500` responses.
 
 ## 4. Frontend HTTP Service Contracts
 
+### `AuthService`
+
+```typescript
+register(command: RegisterCommand): Observable<RegisterResponse>
+// POST /api/auth/register
+
+login(command: LoginCommand): Observable<LoginResponse>
+// POST /api/auth/login
+```
+
 ### `FlightService`
 
 ```typescript
@@ -271,6 +365,16 @@ createBooking(command: CreateBookingCommand): Observable<BookingConfirmation>
 
 ```typescript
 // Request models
+interface RegisterCommand {
+  email: string;
+  password: string;
+}
+
+interface LoginCommand {
+  email: string;
+  password: string;
+}
+
 interface FlightSearchQuery {
   origin: string;
   destination: string;
@@ -296,6 +400,16 @@ interface CreateBookingCommand {
 }
 
 // Response models
+interface RegisterResponse {
+  email: string;
+  message: string;
+}
+
+interface LoginResponse {
+  token: string;
+  expiresAt: string;   // ISO 8601 UTC
+}
+
 interface FlightResult {
   flightId: string;
   provider: string;

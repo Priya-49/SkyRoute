@@ -229,7 +229,32 @@ Each phase remains small enough to build, test, and verify independently within 
 
 ---
 
-**Backend/Database exit gate:** every endpoint in `Api_Contracts.md` for Search and Booking is implemented, tested, and verifiable via a tool like Postman/curl/Swagger before Phase 3 begins. Treat this as a hard checkpoint — Phase 3 assumes these contracts are frozen.
+## Phase 2G — Authentication (JWT)
+
+**Deliverables:**
+* `ApplicationUser` extending ASP.NET Core Identity's `IdentityUser`
+* ASP.NET Core Identity + EF Core identity tables migration
+* `POST /api/auth/register` endpoint — creates a new user account
+* `POST /api/auth/login` endpoint — returns a signed JWT bearer token
+* `AuthController` in the API layer
+* JWT configuration in `appsettings.json` (`Jwt:Key`, `Jwt:Issuer`, `Jwt:Audience`, `Jwt:ExpiryMinutes`)
+* `[Authorize]` attribute applied to `POST /api/bookings` only — flight search remains public
+* JWT bearer middleware registered in `Program.cs`
+* Integration tests for register, login, and unauthorized booking attempt
+
+**Exit criteria:**
+* `POST /api/auth/register` returns `200 OK` with user details on success; `400` on duplicate email or validation failure
+* `POST /api/auth/login` returns `200 OK` with a valid JWT token on correct credentials; `401` on wrong credentials
+* Unauthenticated `POST /api/bookings` returns `401 Unauthorized`
+* Authenticated `POST /api/bookings` (valid Bearer token) succeeds as before
+* `POST /api/flights/search` remains publicly accessible — no token required
+* All integration tests pass
+
+**Estimated effort:** 1.5 hours
+
+---
+
+**Backend/Database exit gate:** every endpoint in `Api_Contracts.md` for Search, Booking, and Auth is implemented, tested, and verifiable via a tool like Postman/curl/Swagger before Phase 3 begins. Treat this as a hard checkpoint — Phase 3 assumes these contracts are frozen.
 
 ---
 
@@ -456,7 +481,7 @@ Each phase remains small enough to build, test, and verify independently within 
 
 ```
 Phase 1 (done: 1A → 1B → 1C → 1D → 1E)
-Phase 2 — Backend & Database (both features): 2A → 2B → 2C → 2D → 2E → 2F
+Phase 2 — Backend & Database (both features): 2A → 2B → 2C → 2D → 2E → 2F → 2G
 Phase 3 — Frontend (both features): 3A → 3B → 3C → 3D → 3E → 3F
 Phase 4 — Cross-Cutting, Verification & Documentation: 4A → 4B → 4C → 4D → 4E
 ```
@@ -467,9 +492,9 @@ Within Phase 2 and Phase 3, still respect Domain → Application → Infrastruct
 
 ## Summary
 
-**Total Phases:** 23 (5 already complete in Phase 1, 18 remaining across Phases 2-4)
+**Total Phases:** 24 (5 already complete in Phase 1, 19 remaining across Phases 2-4)
 
-**Estimated Remaining Effort:** ~21 hours (Phase 2: ~7h · Phase 3: ~7.5h · Phase 4: ~6h)
+**Estimated Remaining Effort:** ~22.5 hours (Phase 2: ~8.5h · Phase 3: ~7.5h · Phase 4: ~6h)
 
 **Why this grouping, and what it trades away:**
 * Gains: full backend/DB stability and API-contract conformance before any UI work begins; frontend work proceeds against a frozen, fully-tested API surface with no backend churn mid-build.

@@ -13,6 +13,7 @@ SkyRoute is a travel aggregator feature slice: search, compare, and book flights
 
 **Explicit functional requirements:**
 
+- Authentication: user registration and login via email/password. JWT bearer token required to create a booking. Flight search is public (no token needed).
 - Search form: origin/destination dropdowns (≥6 airports across ≥2 countries), departure date, passengers (1–9), cabin class (Economy/Business/FirstClass).
 - Results: provider, flight number, times, duration, cabin class, price — total price primary, per-passenger secondary. Client-side-only sort by price/duration/departure time. Loading and empty states.
 - Booking: summary + price breakdown, passenger form (name, email, document number) with a **document field that changes label and validation rule based on route type** — Passport for international, National ID for domestic. Submission returns a booking reference code.
@@ -20,7 +21,7 @@ SkyRoute is a travel aggregator feature slice: search, compare, and book flights
 
 **Implicit requirements treated as first-class:** provider extensibility (Strategy/plugin pattern, not conditionals); country resolution from airport as structured data, not inferred from display names; deterministic, unique, human-readable booking references; dual-layer validation (frontend convenience, backend authority); full error-state handling (not just empty results); rejection of past departure dates; price consistency between results screen and booking screen — the same number must appear in both, with the backend as sole authority.
 
-**Out of scope:** real airline APIs, authentication, payment processing, cloud deployment, connecting flights, seat selection, cancellation/modification.
+**Out of scope:** real airline APIs, payment processing, cloud deployment, connecting flights, seat selection, cancellation/modification.
 
 ---
 
@@ -228,8 +229,10 @@ Implemented via EF Core 10 / SQL Server.
 ### 3.4 API Layer
 
 ```
+POST /api/auth/register
+POST /api/auth/login
 POST /api/flights/search
-POST /api/bookings
+POST /api/bookings              ← [Authorize] — requires valid JWT bearer token
 ```
 
 Full contracts in `Api_Contracts.md`.
@@ -237,6 +240,7 @@ Full contracts in `Api_Contracts.md`.
 ```
 GlobalExceptionMiddleware   → Catches unhandled exceptions; returns RFC 7807 ProblemDetails
 RequestLoggingMiddleware    → Structured logging via Serilog
+JwtBearerMiddleware         → Validates JWT token on [Authorize] endpoints; returns 401 on failure
 ```
 
 CORS allows `http://localhost:4200` (Angular dev server). FluentValidation integrated via `AddFluentValidationAutoValidation()` — validation failures return `400` with field-level errors.
@@ -246,6 +250,10 @@ CORS allows `http://localhost:4200` (Angular dev server). FluentValidation integ
 ```csharp
 // Framework
 services.AddMemoryCache();
+services.AddIdentity<ApplicationUser, IdentityRole>()
+        .AddEntityFrameworkStores<SkyRouteDbContext>();
+services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options => { /* validate issuer, audience, key from config */ });
 
 // Infrastructure
 services.AddScoped<IFlightProvider, GlobalAirProvider>();
@@ -378,7 +386,8 @@ User selects flight → navigate to /booking/:flightId
 |---|---|
 | Backend — unhandled exceptions | `GlobalExceptionMiddleware` → RFC 7807 ProblemDetails |
 | Backend — validation failures | FluentValidation → HTTP 400 + field errors |
-| Frontend — HTTP errors | `ErrorInterceptor` → user-facing error messages |
+| Backend — authentication | JWT Bearer middleware → HTTP 401 on missing/invalid token |
+| Frontend — HTTP errors | `ErrorInterceptor` → user-facing error messages; 401 redirects to `/login` |
 | Frontend — empty results | `EmptyStateComponent` rendered when `searchResults().length === 0` |
 
 Logging: Serilog, console + file sinks, structured logging on use-case entry/exit and provider calls.
@@ -413,6 +422,8 @@ Configuration: no secrets in source; environment-specific values via `appsetting
 | Decision | Choice | Key reason |
 |---|---|---|
 | Backend pattern | Clean Architecture | Provider extensibility + testability |
+| Authentication | ASP.NET Core Identity + JWT Bearer | Standard .NET auth stack; stateless tokens suit API clients |
+| Protected endpoints | `POST /api/bookings` only | Search is public; booking requires identity to prevent anonymous abuse |
 | Pricing location | Backend only | Single source of truth; prevents client-side manipulation |
 | Provider pattern | Strategy + DI | Open/Closed — new providers don't touch existing code |
 | Airport mapping | In-memory typed registry | No external dependency; deterministic; testable |

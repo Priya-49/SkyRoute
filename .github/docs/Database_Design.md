@@ -9,11 +9,14 @@
 | Entity | Reason for persistence |
 |---|---|
 | `Bookings` | Must persist — booking reference must be retrievable |
+| `AspNetUsers` (Identity) | Must persist — user accounts for authentication |
+| `AspNetRoles` / supporting Identity tables | Created automatically by ASP.NET Core Identity migrations |
 
 | Data | Storage |
 |---|---|
 | Flight search results | `IMemoryCache` — 30-minute TTL, per `FlightId` |
 | Airport registry | In-memory static list — `AirportRegistry` singleton |
+| JWT signing key | `appsettings.json` → `Jwt:Key` (never committed as a secret in production) |
 
 ---
 
@@ -118,7 +121,12 @@ public class BookingConfiguration : IEntityTypeConfiguration<Booking>
 **Migrations:** EF Core migrations over raw SQL scripts, keeping schema versioned alongside the codebase.
 
 ```bash
+# Initial bookings schema
 dotnet ef migrations add InitialCreate --project SkyRoute.Infrastructure --startup-project SkyRoute.API
+
+# Identity tables (run after Phase 2G Identity setup)
+dotnet ef migrations add AddIdentity --project SkyRoute.Infrastructure --startup-project SkyRoute.API
+
 dotnet ef database update --project SkyRoute.Infrastructure --startup-project SkyRoute.API
 ```
 
