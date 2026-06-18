@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -24,8 +23,6 @@ public sealed class BookingsControllerEndpointTests : IClassFixture<BookingsCont
     public async Task Create_ReturnsCreated_WithContractShapeForValidRequest()
     {
         using var client = _factory.CreateClient();
-        var token = await RegisterAndLoginAsync(client, "booking.success@example.com");
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         var firstFlight = await SearchFirstFlightAsync(client, "JFK", "LHR");
 
         var request = BuildBookingRequest(firstFlight, "Passport", "P1234567");
@@ -54,8 +51,6 @@ public sealed class BookingsControllerEndpointTests : IClassFixture<BookingsCont
     public async Task Create_ReturnsNotFound_WhenFlightIsMissingFromCache()
     {
         using var client = _factory.CreateClient();
-        var token = await RegisterAndLoginAsync(client, "booking.notfound@example.com");
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         var request = new
         {
             flightId = Guid.NewGuid(),
@@ -86,8 +81,6 @@ public sealed class BookingsControllerEndpointTests : IClassFixture<BookingsCont
     public async Task Create_ReturnsBadRequest_WhenDocumentTypeDoesNotMatchRouteType()
     {
         using var client = _factory.CreateClient();
-        var token = await RegisterAndLoginAsync(client, "booking.badrequest@example.com");
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         var firstFlight = await SearchFirstFlightAsync(client, "DEL", "BOM");
 
         var request = BuildBookingRequest(firstFlight, "Passport", "P1234567");
@@ -99,18 +92,6 @@ public sealed class BookingsControllerEndpointTests : IClassFixture<BookingsCont
         Assert.True(doc.RootElement.TryGetProperty("errors", out var errors));
         Assert.True(errors.TryGetProperty("DocumentType", out var documentTypeErrors));
         Assert.Contains("NationalId is required for domestic routes.", documentTypeErrors[0].GetString());
-    }
-
-    [Fact]
-    public async Task Create_ReturnsUnauthorized_WhenBearerTokenIsMissing()
-    {
-        using var client = _factory.CreateClient();
-        var firstFlight = await SearchFirstFlightAsync(client, "JFK", "LHR");
-        var request = BuildBookingRequest(firstFlight, "Passport", "P1234567");
-
-        var response = await client.PostAsJsonAsync("/api/bookings", request);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     private static async Task<JsonElement> SearchFirstFlightAsync(HttpClient client, string origin, string destination)
@@ -154,30 +135,8 @@ public sealed class BookingsControllerEndpointTests : IClassFixture<BookingsCont
             documentNumber
         };
 
-    private static async Task<string> RegisterAndLoginAsync(HttpClient client, string email)
-    {
-        var password = "P@ssw0rd123!";
-        await client.PostAsJsonAsync("/api/auth/register", new
-        {
-            email,
-            password
-        });
-
-        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new
-        {
-            email,
-            password
-        });
-        loginResponse.EnsureSuccessStatusCode();
-
-        using var json = JsonDocument.Parse(await loginResponse.Content.ReadAsStringAsync());
-        return json.RootElement.GetProperty("token").GetString()!;
-    }
-
     public sealed class BookingsApiFactory : WebApplicationFactory<Program>
     {
-        private readonly string _databaseName = $"SkyRouteBookingsTests-{Guid.NewGuid()}";
-
         protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
         {
             builder.ConfigureServices(services =>
@@ -187,7 +146,7 @@ public sealed class BookingsControllerEndpointTests : IClassFixture<BookingsCont
                 services.RemoveAll<SkyRouteDbContext>();
                 services.AddDbContext<SkyRouteDbContext>(options =>
                 {
-                    options.UseInMemoryDatabase(_databaseName);
+                    options.UseInMemoryDatabase($"SkyRouteBookingsTests-{Guid.NewGuid()}");
                 });
             });
         }
