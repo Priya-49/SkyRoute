@@ -10,4 +10,6 @@ public interface IBookingRepository
     Task<Booking?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     Task<Booking?> GetByReferenceAsync(BookingReference referenceCode, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Booking>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
 }
