@@ -323,7 +323,7 @@ Generated using a cryptographically random 7-character string from `[A-Z0-9]`. U
 
 ---
 
-### 2.7 GET `/api/bookings/mine`
+### 2.7 GET `/api/bookings/me`
 
 Returns all bookings belonging to the currently authenticated user. **Requires authentication.**
 
@@ -474,7 +474,7 @@ createBooking(command: CreateBookingCommand): Observable<BookingConfirmation>
 // POST /api/bookings — requires Authorization header (attached by AuthInterceptor)
 
 getMyBookings(): Observable<MyBookingsResponse>
-// GET /api/bookings/mine — requires Authorization header
+// GET /api/bookings/me — requires Authorization header
 ```
 
 ### TypeScript Interfaces
@@ -603,4 +603,3 @@ Hardcoded airports available to both frontend (dropdowns) and backend (validatio
 | DXB | Dubai International | Dubai | AE |
 
 ---
-

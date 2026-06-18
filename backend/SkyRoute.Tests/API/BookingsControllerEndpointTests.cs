@@ -62,7 +62,7 @@ public sealed class BookingsControllerEndpointTests : IClassFixture<BookingsCont
     }
 
     [Fact]
-    public async Task Mine_ReturnsOnlyBookingsForAuthenticatedUser()
+    public async Task Me_ReturnsOnlyBookingsForAuthenticatedUser()
     {
         using var firstUserClient = _factory.CreateClient();
         var firstUserToken = await RegisterAndGetAccessTokenAsync(firstUserClient, "first.user@example.com");
@@ -78,7 +78,7 @@ public sealed class BookingsControllerEndpointTests : IClassFixture<BookingsCont
         await firstUserClient.PostAsJsonAsync("/api/bookings", BuildBookingRequest(flight1, "Passport", "P1234567"));
         await secondUserClient.PostAsJsonAsync("/api/bookings", BuildBookingRequest(flight2, "Passport", "P7654321"));
 
-        var mineResponse = await firstUserClient.GetAsync("/api/bookings/mine");
+        var mineResponse = await firstUserClient.GetAsync("/api/bookings/me");
         var mineJson = await mineResponse.Content.ReadAsStringAsync();
         using var mineDoc = JsonDocument.Parse(mineJson);
 

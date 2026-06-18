@@ -267,13 +267,13 @@ Each phase remains small enough to build, test, and verify independently within 
   * `POST /api/auth/refresh`
   * `POST /api/auth/revoke`
 * `BookingsController` updated: `[Authorize]` on `POST /api/bookings`; `UserId` extracted from JWT claims and written to the booking record
-* `GET /api/bookings/mine` — returns only the authenticated user's bookings
+* `GET /api/bookings/me` — returns only the authenticated user's bookings
 * `UseAuthentication()` + `UseAuthorization()` added to middleware pipeline in `Program.cs`
 * JWT bearer scheme registered via `AddAuthentication(JwtBearerDefaults.AuthenticationScheme)`
 
 **Tests:**
 * Unit: `RegisterUseCase` (duplicate email → 409), `LoginUseCase` (wrong password → 401), `RefreshTokenUseCase` (expired token → 401, revoked token → 401, valid rotation → new token pair), `RevokeTokenUseCase`
-* Integration: all four auth endpoints, `POST /api/bookings` returns 401 without token, returns 201 with valid token, `GET /api/bookings/mine` scoped to authenticated user
+* Integration: all four auth endpoints, `POST /api/bookings` returns 401 without token, returns 201 with valid token, `GET /api/bookings/me` scoped to authenticated user
 
 **Security rules (non-negotiable):**
 * Passwords stored using `IPasswordHasher<User>` (ASP.NET Core BCrypt-based hasher) — never plaintext
@@ -291,7 +291,7 @@ Each phase remains small enough to build, test, and verify independently within 
 * `POST /api/auth/revoke` invalidates the refresh token
 * `POST /api/bookings` returns `401` when called without a valid JWT
 * `POST /api/bookings` succeeds with a valid JWT and persists `UserId` on the booking
-* `GET /api/bookings/mine` returns only bookings belonging to the authenticated user
+* `GET /api/bookings/me` returns only bookings belonging to the authenticated user
 * Refresh token replay (reuse after rotation) is rejected with `401`
 * All unit and integration tests pass
 

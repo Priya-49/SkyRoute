@@ -286,7 +286,7 @@ POST /api/auth/refresh      → public
 POST /api/auth/revoke       → public
 POST /api/flights/search    → public
 POST /api/bookings          → [Authorize] — JWT required
-GET  /api/bookings/mine     → [Authorize] — JWT required; scoped to authenticated UserId
+GET  /api/bookings/me       → [Authorize] — JWT required; scoped to authenticated UserId
 ```
 
 Full contracts in `Api_Contracts.md`.

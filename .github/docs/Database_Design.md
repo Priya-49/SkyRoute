@@ -129,7 +129,7 @@ CREATE INDEX IX_RefreshTokens_UserId ON RefreshTokens (UserId);   -- revoke-all-
 CREATE UNIQUE INDEX UX_Bookings_ReferenceCode ON Bookings (ReferenceCode);
 
 CREATE INDEX IX_Bookings_UserId
-    ON Bookings (UserId) INCLUDE (ReferenceCode, CreatedAt);   -- GET /api/bookings/mine
+    ON Bookings (UserId) INCLUDE (ReferenceCode, CreatedAt);   -- GET /api/bookings/me
 
 CREATE INDEX IX_Bookings_Email
     ON Bookings (Email) INCLUDE (ReferenceCode, CreatedAt);   -- future "manage my bookings"

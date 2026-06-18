@@ -89,8 +89,8 @@ Scope: HTTP request → controller → use case → repository → HTTP response
 | Refresh expired token returns 401 | `POST /api/auth/refresh` | Expired refresh token |
 | Refresh revoked token returns 401 | `POST /api/auth/refresh` | Already-rotated token |
 | Revoke returns 200 | `POST /api/auth/revoke` | Valid or unknown token |
-| My bookings returns 200 scoped to user | `GET /api/bookings/mine` | Only authenticated user's bookings returned |
-| My bookings without JWT returns 401 | `GET /api/bookings/mine` | No Authorization header |
+| My bookings returns 200 scoped to user | `GET /api/bookings/me` | Only authenticated user's bookings returned |
+| My bookings without JWT returns 401 | `GET /api/bookings/me` | No Authorization header |
 
 ---
 
@@ -128,7 +128,7 @@ Label must also update reactively when the route is switched mid-form.
 | Revoked refresh token → 401 (never 400) | Unit + Integration |
 | Expired refresh token → 401 (never 400) | Unit + Integration |
 | `POST /api/bookings` without JWT → 401 | Integration |
-| `GET /api/bookings/mine` only returns the authenticated user's bookings | Integration |
+| `GET /api/bookings/me` only returns the authenticated user's bookings | Integration | 
 | Login with wrong password → 401, same message as unknown email | Unit + Integration |
 
 ---
