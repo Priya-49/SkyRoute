@@ -24,6 +24,11 @@ builder.Host.UseSerilog((context, loggerConfiguration) =>
 builder.Services.AddRouting();
 builder.Services.AddControllers();
 builder.Services.AddMemoryCache();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new() { Title = "SkyRoute API", Version = "v1" });
+});
 builder.Services.AddHealthChecks();
 builder.Services.AddDbContext<SkyRouteDbContext>(options =>
 {
@@ -54,6 +59,8 @@ builder.Services.AddScoped<IValidator<CreateBookingCommand>, CreateBookingComman
 var app = builder.Build();
 
 app.UseSerilogRequestLogging();
+app.UseSwagger();
+app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "SkyRoute API v1"));
 app.UseRouting();
 app.UseCors(CorsPolicyName);
 

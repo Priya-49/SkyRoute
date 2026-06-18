@@ -20,7 +20,7 @@ SkyRoute is a travel aggregator feature slice: search, compare, and book flights
 
 **Implicit requirements treated as first-class:** provider extensibility (Strategy/plugin pattern, not conditionals); country resolution from airport as structured data, not inferred from display names; deterministic, unique, human-readable booking references; dual-layer validation (frontend convenience, backend authority); full error-state handling (not just empty results); rejection of past departure dates; price consistency between results screen and booking screen — the same number must appear in both, with the backend as sole authority.
 
-**Out of scope:** real airline APIs, authentication, payment processing, cloud deployment, connecting flights, seat selection, cancellation/modification.
+**Out of scope:** real airline APIs, payment processing, cloud deployment, connecting flights, seat selection, cancellation/modification.
 
 ---
 
@@ -85,8 +85,21 @@ Airport
 ├── Code (IATA), Name, City
 └── CountryCode (ISO 3166-1 alpha-2)
 
+User
+├── Id (Guid), Email (unique)
+├── PasswordHash (BCrypt via IPasswordHasher<User>)
+├── FirstName, LastName
+└── CreatedAt (UTC)
+
+RefreshToken
+├── Id (Guid), UserId (FK → User.Id)
+├── TokenHash (SHA-256 of raw token — raw token never persisted)
+├── CreatedAt, ExpiresAt (30-day TTL)
+└── RevokedAt (nullable — null = active)
+
 Booking
 ├── Id (Guid), ReferenceCode (SKY-XXXXXXX)
+├── UserId (FK → User.Id)                              # added in Phase 2G
 ├── Provider, FlightNumber, Origin, Destination       # snapshot from CachedFlightEntry
 ├── DepartureTime, ArrivalTime (UTC)                  # snapshot
 ├── CabinClass                                          # snapshot
@@ -111,6 +124,21 @@ public interface IFlightProvider
     string ProviderName { get; }
     Task<IEnumerable<Flight>> SearchAsync(FlightSearchCriteria criteria);
 }
+
+public interface IUserRepository
+{
+    Task<User?> GetByEmailAsync(string email);
+    Task<User?> GetByIdAsync(Guid id);
+    Task CreateAsync(User user);
+}
+
+public interface IRefreshTokenRepository
+{
+    Task CreateAsync(RefreshToken token);
+    Task<RefreshToken?> GetByHashAsync(string tokenHash);
+    Task RevokeAsync(Guid tokenId, DateTime revokedAt);
+    Task RevokeAllForUserAsync(Guid userId, DateTime revokedAt);
+}
 ```
 
 **Decision:** pricing is a domain concern, not infrastructure. Surcharges/discounts/minimums are business rules and belong with the domain, not in a database row.
@@ -124,6 +152,10 @@ Orchestrates use cases; depends only on domain interfaces.
 |---|---|---|
 | `SearchFlightsUseCase` | `FlightSearchQuery` | `IEnumerable<FlightResultDto>` |
 | `CreateBookingUseCase` | `CreateBookingCommand` | `BookingConfirmationDto` |
+| `RegisterUseCase` | `RegisterCommand` | `AuthTokenDto` |
+| `LoginUseCase` | `LoginCommand` | `AuthTokenDto` |
+| `RefreshTokenUseCase` | `RefreshTokenCommand` | `AuthTokenDto` |
+| `RevokeTokenUseCase` | `RevokeTokenCommand` | `void` |
 
 **SearchFlightsUseCase flow:**
 1. Validate query (FluentValidation).
@@ -165,6 +197,12 @@ CreateBookingCommand     → flightId, passengerName, email, documentNumber, doc
 BookingConfirmationDto   → referenceCode, passengerName, provider, flightNumber, origin, destination,
                             departureTime, arrivalTime, cabinClass, passengers, pricePerPassenger, totalPrice
 
+RegisterCommand          → email, password, firstName, lastName
+LoginCommand             → email, password
+RefreshTokenCommand      → refreshToken
+RevokeTokenCommand       → refreshToken
+AuthTokenDto             → accessToken, expiresIn, refreshToken
+
 CachedFlightEntry (internal cache record, not a DTO, never exposed to API)
                           → flightId, provider, flightNumber, origin, destination,
                             departureTime, arrivalTime, cabinClass, baseFare
@@ -200,6 +238,20 @@ BudgetWingsPricingStrategy : IPricingStrategy  → Math.Max(baseFare * 0.90m, 29
 **Rationale:** decouples pricing from data generation; each is independently testable; a new provider requires only a new strategy class — zero changes to existing code.
 **Future scalability:** a `PricingStrategyFactory` resolves the correct strategy by provider name from DI. New providers register their own strategy.
 
+**Authentication infrastructure:**
+
+```
+JwtTokenService    : ITokenService
+  → GenerateAccessToken(User) → signed JWT (HS256), 15-minute expiry
+  → GenerateRefreshToken()    → Guid.NewGuid() raw token; caller stores SHA-256 hash in DB
+  → Signing key from appsettings.json → Jwt:Key (min 32 chars, never hardcoded)
+
+UserRepository        : IUserRepository      (EF Core)
+RefreshTokenRepository : IRefreshTokenRepository (EF Core)
+```
+
+**Password hashing:** `IPasswordHasher<User>` (ASP.NET Core built-in, BCrypt-based). The `RegisterUseCase` hashes on write; `LoginUseCase` verifies on read. Raw passwords never leave the Application layer.
+
 **Flight Search Cache:**
 
 ```
@@ -228,8 +280,13 @@ Implemented via EF Core 10 / SQL Server.
 ### 3.4 API Layer
 
 ```
-POST /api/flights/search
-POST /api/bookings
+POST /api/auth/register     → public
+POST /api/auth/login        → public
+POST /api/auth/refresh      → public
+POST /api/auth/revoke       → public
+POST /api/flights/search    → public
+POST /api/bookings          → [Authorize] — JWT required
+GET  /api/bookings/mine     → [Authorize] — JWT required; scoped to authenticated UserId
 ```
 
 Full contracts in `Api_Contracts.md`.
@@ -237,6 +294,21 @@ Full contracts in `Api_Contracts.md`.
 ```
 GlobalExceptionMiddleware   → Catches unhandled exceptions; returns RFC 7807 ProblemDetails
 RequestLoggingMiddleware    → Structured logging via Serilog
+UseAuthentication()         → Validates JWT bearer token on every request
+UseAuthorization()          → Enforces [Authorize] attribute on protected endpoints
+```
+
+**JWT configuration (appsettings.json):**
+```json
+{
+  "Jwt": {
+    "Key": "<minimum 32-character secret — set per environment, never committed>",
+    "Issuer": "SkyRoute",
+    "Audience": "SkyRoute",
+    "AccessTokenExpiryMinutes": 15,
+    "RefreshTokenExpiryDays": 30
+  }
+}
 ```
 
 CORS allows `http://localhost:4200` (Angular dev server). FluentValidation integrated via `AddFluentValidationAutoValidation()` — validation failures return `400` with field-level errors.
@@ -246,6 +318,8 @@ CORS allows `http://localhost:4200` (Angular dev server). FluentValidation integ
 ```csharp
 // Framework
 services.AddMemoryCache();
+services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options => { /* validate issuer, audience, key, lifetime */ });
 
 // Infrastructure
 services.AddScoped<IFlightProvider, GlobalAirProvider>();
@@ -253,11 +327,18 @@ services.AddScoped<IFlightProvider, BudgetWingsProvider>();
 services.AddScoped<IPricingStrategy, GlobalAirPricingStrategy>();
 services.AddScoped<IPricingStrategy, BudgetWingsPricingStrategy>();
 services.AddScoped<IBookingRepository, BookingRepository>();
+services.AddScoped<IUserRepository, UserRepository>();
+services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+services.AddScoped<ITokenService, JwtTokenService>();
 services.AddSingleton<IFlightSearchCache, FlightSearchCache>();  // Singleton — must outlive request scope
 
 // Application
 services.AddScoped<SearchFlightsUseCase>();
 services.AddScoped<CreateBookingUseCase>();
+services.AddScoped<RegisterUseCase>();
+services.AddScoped<LoginUseCase>();
+services.AddScoped<RefreshTokenUseCase>();
+services.AddScoped<RevokeTokenUseCase>();
 ```
 
 `FlightSearchCache` must be `Singleton` — registering it `Scoped` would create a new cache per request, defeating its purpose. Adding a new provider = two new classes + two `AddScoped` lines; no existing code changes.
@@ -423,6 +504,12 @@ Configuration: no secrets in source; environment-specific values via `appsetting
 | Flight cache | `IMemoryCache` (30-min TTL, Singleton) | Server-side price recalculation without persisting every search result; zero infrastructure for single-instance scope |
 | Cache interface | `IFlightSearchCache` (Application layer) | Keeps Application free of caching framework deps; allows Redis swap in Infrastructure with zero use-case changes |
 | Flight/booking persistence | Denormalised `Bookings` table only; no `Flights` table | Flights aren't persisted independently; booking record must be self-contained |
+| Authentication | JWT (HS256) access tokens + refresh token rotation | Stateless auth; short-lived access tokens limit blast radius of token theft |
+| Access token TTL | 15 minutes | Short enough to limit exposure; refresh token handles seamless renewal |
+| Refresh token storage | SHA-256 hash in DB only | Raw token never persisted; hash comparison on use; safe even if DB is compromised |
+| Refresh token rotation | Revoke-on-use + new token issued | Eliminates replay attacks; stolen token detected on reuse |
+| Password hashing | `IPasswordHasher<User>` (ASP.NET Core) | BCrypt-based; salted; built-in; no third-party dependency |
+| Token service interface | `ITokenService` in Application layer | Keeps Application layer free of JWT framework deps; swappable implementation |
 
 ---
 
@@ -434,3 +521,5 @@ Configuration: no secrets in source; environment-specific values via `appsetting
 4. A single passenger's details are collected per booking (not one form per passenger).
 5. No payment is required — confirmation generates a reference code only.
 6. Departure and arrival times are mocked but internally consistent (arrival > departure).
+7. JWT signing key is symmetric (HS256) — sufficient for a single-server deployment. For multi-server or microservice scenarios, asymmetric keys (RS256) should be considered.
+8. Refresh token theft detection is partial — revoked-token reuse returns `401` but does not yet trigger revocation of all user tokens. Full "family revocation" is a future enhancement.

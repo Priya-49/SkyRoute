@@ -14,14 +14,144 @@
 | Decimal format | String with 2 decimal places — `"320.00"` |
 | Currency | `USD` (all prices) — future multi-currency support via `currency` field |
 | Error format | RFC 7807 ProblemDetails |
-| HTTP success codes | `200 OK` (search), `201 Created` (booking) |
-| HTTP error codes | `400` validation, `404` not found, `500` server error |
+| HTTP success codes | `200 OK` (search, token refresh), `201 Created` (booking, register) |
+| HTTP error codes | `400` validation, `401` unauthorized, `404` not found, `409` conflict, `500` server error |
+| Authentication | `Authorization: Bearer <accessToken>` on all protected endpoints |
 
 ---
 
 ## 2. Endpoints
 
-### 2.1 POST `/api/flights/search`
+### 2.1 POST `/api/auth/register`
+
+Register a new user account. Returns a JWT access token and refresh token on success.
+
+#### Request Body
+
+```json
+{
+  "email": "jane.doe@example.com",
+  "password": "S3cur3P@ssw0rd!",
+  "firstName": "Jane",
+  "lastName": "Doe"
+}
+```
+
+#### Request Field Validation
+
+| Field | Type | Rules |
+|---|---|---|
+| `email` | `string` | Required. Valid email format. Max 320 characters. Must be unique — returns `409` if already registered. |
+| `password` | `string` | Required. Min 8 characters. Must contain at least one uppercase letter, one digit, and one special character. |
+| `firstName` | `string` | Required. Max 100 characters. |
+| `lastName` | `string` | Required. Max 100 characters. |
+
+#### Response Body — `201 Created`
+
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expiresIn": 900,
+  "refreshToken": "d2f4a1b3-9c2e-4d7f-8a1b-3e5f7c9d2a4b"
+}
+```
+
+| Field | Notes |
+|---|---|
+| `accessToken` | Signed JWT. Expires in **15 minutes** (`expiresIn: 900` seconds). |
+| `refreshToken` | Opaque token. Expires in **30 days**. Store securely (HttpOnly cookie recommended on frontend). |
+
+---
+
+### 2.2 POST `/api/auth/login`
+
+Authenticate an existing user. Returns a JWT access token and refresh token.
+
+#### Request Body
+
+```json
+{
+  "email": "jane.doe@example.com",
+  "password": "S3cur3P@ssw0rd!"
+}
+```
+
+#### Request Field Validation
+
+| Field | Type | Rules |
+|---|---|---|
+| `email` | `string` | Required. Valid email format. |
+| `password` | `string` | Required. |
+
+#### Response Body — `200 OK`
+
+Same shape as `POST /api/auth/register` response.
+
+#### Error — Invalid Credentials
+
+Returns `401 Unauthorized` (not `404`) — never reveal whether the email exists.
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc7807",
+  "title": "Unauthorized",
+  "status": 401,
+  "detail": "Invalid email or password."
+}
+```
+
+---
+
+### 2.3 POST `/api/auth/refresh`
+
+Exchange a valid refresh token for a new access token + rotated refresh token.
+
+#### Request Body
+
+```json
+{
+  "refreshToken": "d2f4a1b3-9c2e-4d7f-8a1b-3e5f7c9d2a4b"
+}
+```
+
+#### Response Body — `200 OK`
+
+Same shape as `POST /api/auth/register` response. The old refresh token is immediately revoked; the new one replaces it.
+
+#### Error — Invalid / Expired / Revoked Token
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc7807",
+  "title": "Unauthorized",
+  "status": 401,
+  "detail": "Refresh token is invalid or has expired."
+}
+```
+
+**Replay attack rule:** if a previously-rotated (revoked) refresh token is presented, the server returns `401`. Future: revoke all tokens for the user as a security measure (token theft detection).
+
+---
+
+### 2.4 POST `/api/auth/revoke`
+
+Revoke a refresh token (logout). No `Authorization` header required — uses the refresh token itself as proof of identity.
+
+#### Request Body
+
+```json
+{
+  "refreshToken": "d2f4a1b3-9c2e-4d7f-8a1b-3e5f7c9d2a4b"
+}
+```
+
+#### Response — `200 OK`
+
+Empty body. Always returns `200` — even if the token is already revoked or not found (prevents token enumeration).
+
+---
+
+### 2.5 POST `/api/flights/search`
 
 Search for available flights across all providers.
 
@@ -108,9 +238,11 @@ If no flights match, return `200 OK` with an empty `results` array — not a `40
 
 ---
 
-### 2.2 POST `/api/bookings`
+### 2.6 POST `/api/bookings`
 
-Create a booking for a selected flight.
+Create a booking for a selected flight. **Requires authentication** — include `Authorization: Bearer <accessToken>` header. The authenticated user's ID is extracted from the JWT and stored on the booking.
+
+**Returns `401 Unauthorized`** if no valid JWT is provided.
 
 #### Request Body
 
@@ -191,6 +323,39 @@ Generated using a cryptographically random 7-character string from `[A-Z0-9]`. U
 
 ---
 
+### 2.7 GET `/api/bookings/mine`
+
+Returns all bookings belonging to the currently authenticated user. **Requires authentication.**
+
+**Returns `401 Unauthorized`** if no valid JWT is provided.
+
+#### Response Body — `200 OK`
+
+```json
+{
+  "bookings": [
+    {
+      "referenceCode": "SKY-A3B7X2K",
+      "provider": "GlobalAir",
+      "flightNumber": "GA-4821",
+      "origin": "JFK",
+      "destination": "LHR",
+      "departureTime": "2026-08-15T08:00:00",
+      "arrivalTime": "2026-08-15T20:00:00",
+      "cabinClass": "Economy",
+      "passengers": 2,
+      "pricePerPassenger": "368.00",
+      "totalPrice": "736.00",
+      "createdAt": "2026-06-18T05:10:00"
+    }
+  ]
+}
+```
+
+Results are ordered by `CreatedAt` descending (most recent first). Returns an empty `bookings` array if the user has no bookings — never `404`.
+
+---
+
 ## 3. Error Contract
 
 All errors follow RFC 7807 ProblemDetails format.
@@ -207,6 +372,32 @@ All errors follow RFC 7807 ProblemDetails format.
     "departureDate": ["Departure date must be today or in the future."],
     "documentType": ["Passport is required for international routes."]
   }
+}
+```
+
+### 401 — Unauthorized
+
+Returned when a protected endpoint is called without a valid JWT, or when login/refresh credentials are invalid.
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc7807",
+  "title": "Unauthorized",
+  "status": 401,
+  "detail": "Invalid email or password."
+}
+```
+
+### 409 — Conflict
+
+Returned when `POST /api/auth/register` is called with an email that already exists.
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc7807",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "An account with this email address already exists."
 }
 ```
 
@@ -253,6 +444,22 @@ No stack traces or internal details are exposed in `500` responses.
 
 ## 4. Frontend HTTP Service Contracts
 
+### `AuthService`
+
+```typescript
+register(command: RegisterCommand): Observable<AuthTokenResponse>
+// POST /api/auth/register
+
+login(command: LoginCommand): Observable<AuthTokenResponse>
+// POST /api/auth/login
+
+refresh(command: RefreshTokenCommand): Observable<AuthTokenResponse>
+// POST /api/auth/refresh
+
+revoke(command: RevokeTokenCommand): Observable<void>
+// POST /api/auth/revoke
+```
+
 ### `FlightService`
 
 ```typescript
@@ -264,12 +471,43 @@ search(query: FlightSearchQuery): Observable<FlightSearchResponse>
 
 ```typescript
 createBooking(command: CreateBookingCommand): Observable<BookingConfirmation>
-// POST /api/bookings
+// POST /api/bookings — requires Authorization header (attached by AuthInterceptor)
+
+getMyBookings(): Observable<MyBookingsResponse>
+// GET /api/bookings/mine — requires Authorization header
 ```
 
 ### TypeScript Interfaces
 
 ```typescript
+// Auth request models
+interface RegisterCommand {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+}
+
+interface LoginCommand {
+  email: string;
+  password: string;
+}
+
+interface RefreshTokenCommand {
+  refreshToken: string;
+}
+
+interface RevokeTokenCommand {
+  refreshToken: string;
+}
+
+// Auth response model
+interface AuthTokenResponse {
+  accessToken: string;
+  expiresIn: number;       // seconds — 900 (15 minutes)
+  refreshToken: string;
+}
+
 // Request models
 interface FlightSearchQuery {
   origin: string;
@@ -327,6 +565,25 @@ interface BookingConfirmation {
   passengers: number;
   pricePerPassenger: string;
   totalPrice: string;
+}
+
+interface BookingSummary {
+  referenceCode: string;
+  provider: string;
+  flightNumber: string;
+  origin: string;
+  destination: string;
+  departureTime: string;
+  arrivalTime: string;
+  cabinClass: string;
+  passengers: number;
+  pricePerPassenger: string;
+  totalPrice: string;
+  createdAt: string;
+}
+
+interface MyBookingsResponse {
+  bookings: BookingSummary[];
 }
 ```
 
