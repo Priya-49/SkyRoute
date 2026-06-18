@@ -34,6 +34,7 @@ public sealed class BookingTests
         new(
             Guid.NewGuid(),
             new BookingReference("SKY-A3B7X2K"),
+            Guid.NewGuid(),
             "GlobalAir",
             "GA-4821",
             "JFK",

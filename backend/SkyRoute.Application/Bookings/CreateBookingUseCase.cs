@@ -61,6 +61,7 @@ public sealed class CreateBookingUseCase
         var booking = new Booking(
             id: Guid.NewGuid(),
             referenceCode: reference,
+            userId: command.UserId,
             provider: cachedFlight.Provider,
             flightNumber: cachedFlight.FlightNumber,
             origin: cachedFlight.Origin.Code,

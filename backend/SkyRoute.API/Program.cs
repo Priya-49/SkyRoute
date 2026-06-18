@@ -5,13 +5,27 @@ using SkyRoute.Infrastructure.Pricing;
 using SkyRoute.Infrastructure.Providers;
 using SkyRoute.Application.Flights;
 using SkyRoute.Application.Bookings;
+using SkyRoute.Application.Auth;
 using FluentValidation;
 using Serilog;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using SkyRoute.Infrastructure.Data;
+using SkyRoute.Infrastructure.Authentication;
+using SkyRoute.Domain.Entities;
 
 var builder = WebApplication.CreateBuilder(args);
 const string CorsPolicyName = "SkyRouteCors";
+var jwtSection = builder.Configuration.GetSection(JwtOptions.SectionName);
+builder.Services.Configure<JwtOptions>(jwtSection);
+var jwtOptions = jwtSection.Get<JwtOptions>() ?? new JwtOptions();
+if (string.IsNullOrWhiteSpace(jwtOptions.Key) || jwtOptions.Key.Length < 32)
+{
+    throw new InvalidOperationException("Jwt:Key must be configured with at least 32 characters.");
+}
 
 builder.Host.UseSerilog((context, loggerConfiguration) =>
 {
@@ -51,10 +65,24 @@ builder.Services.AddSingleton<SkyRoute.Application.Interfaces.IPricingStrategy, 
 builder.Services.AddSingleton<SkyRoute.Application.Interfaces.IPricingStrategy, BudgetWingsPricingStrategy>();
 builder.Services.AddSingleton<IFlightSearchCache, FlightSearchCache>();
 builder.Services.AddScoped<IBookingRepository, BookingRepository>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+builder.Services.AddScoped<ITokenService, JwtTokenService>();
+builder.Services.AddScoped<SkyRoute.Application.Interfaces.IPasswordHasher, AspNetPasswordHasher>();
+builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddScoped<SearchFlightsUseCase>();
 builder.Services.AddScoped<CreateBookingUseCase>();
+builder.Services.AddScoped<GetMyBookingsUseCase>();
+builder.Services.AddScoped<RegisterUseCase>();
+builder.Services.AddScoped<LoginUseCase>();
+builder.Services.AddScoped<RefreshTokenUseCase>();
+builder.Services.AddScoped<RevokeTokenUseCase>();
 builder.Services.AddScoped<IValidator<SearchFlightsQuery>, SearchFlightsQueryValidator>();
 builder.Services.AddScoped<IValidator<CreateBookingCommand>, CreateBookingCommandValidator>();
+builder.Services.AddScoped<IValidator<RegisterCommand>, RegisterCommandValidator>();
+builder.Services.AddScoped<IValidator<LoginCommand>, LoginCommandValidator>();
+builder.Services.AddScoped<IValidator<RefreshTokenCommand>, RefreshTokenCommandValidator>();
+builder.Services.AddScoped<IValidator<RevokeTokenCommand>, RevokeTokenCommandValidator>();
 
 var app = builder.Build();
 
@@ -63,6 +91,8 @@ app.UseSwagger();
 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "SkyRoute API v1"));
 app.UseRouting();
 app.UseCors(CorsPolicyName);
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 app.MapGet("/", () => Results.Ok("SkyRoute API is running."));

@@ -8,6 +8,8 @@
 
 | Entity | Reason for persistence |
 |---|---|
+| `Users` | Identity and credential storage for authentication |
+| `RefreshTokens` | Refresh token rotation and revocation tracking |
 | `Bookings` | Must persist — booking reference must be retrievable |
 | `AspNetUsers` (Identity) | Must persist — user accounts for authentication |
 | `AspNetRoles` / supporting Identity tables | Created automatically by ASP.NET Core Identity migrations |
@@ -20,11 +22,60 @@
 
 ---
 
-## 1. Bookings Table
+## 1. Users Table
+
+```sql
+CREATE TABLE Users (
+    Id              UNIQUEIDENTIFIER    NOT NULL DEFAULT NEWSEQUENTIALID(),
+    Email           NVARCHAR(320)       NOT NULL,
+    PasswordHash    NVARCHAR(500)       NOT NULL,
+    FirstName       NVARCHAR(100)       NOT NULL,
+    LastName        NVARCHAR(100)       NOT NULL,
+    CreatedAt       DATETIME2(0)        NOT NULL DEFAULT SYSUTCDATETIME(),
+
+    CONSTRAINT PK_Users PRIMARY KEY (Id),
+    CONSTRAINT UQ_Users_Email UNIQUE (Email)
+);
+```
+
+**Column notes:** `Email` is unique — enforced at DB level and validated in `RegisterUseCase` before insert. `PasswordHash` stores the output of `IPasswordHasher<User>` (ASP.NET Core BCrypt-based hasher); never plaintext. `Id` uses `NEWSEQUENTIALID()` to reduce index fragmentation.
+
+---
+
+## 2. RefreshTokens Table
+
+```sql
+CREATE TABLE RefreshTokens (
+    Id          UNIQUEIDENTIFIER    NOT NULL DEFAULT NEWSEQUENTIALID(),
+    UserId      UNIQUEIDENTIFIER    NOT NULL,
+    TokenHash   NVARCHAR(100)       NOT NULL,
+    CreatedAt   DATETIME2(0)        NOT NULL DEFAULT SYSUTCDATETIME(),
+    ExpiresAt   DATETIME2(0)        NOT NULL,
+    RevokedAt   DATETIME2(0)        NULL,
+
+    CONSTRAINT PK_RefreshTokens PRIMARY KEY (Id),
+    CONSTRAINT FK_RefreshTokens_Users FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE CASCADE,
+    CONSTRAINT UQ_RefreshTokens_TokenHash UNIQUE (TokenHash)
+);
+```
+
+**Column notes:**
+- `TokenHash` stores `SHA-256(rawToken)` — the raw token is generated as `Guid.NewGuid().ToString()`, returned to the client **once**, and never persisted in plaintext.
+- `RevokedAt` is `NULL` while active; set to `SYSUTCDATETIME()` on rotation or explicit logout.
+- A token is considered valid only if `RevokedAt IS NULL AND ExpiresAt > SYSUTCDATETIME()`.
+- `ON DELETE CASCADE`: revoking a user deletes all their refresh tokens.
+- Refresh token TTL: **30 days** from `CreatedAt`.
+
+**Refresh token rotation rule:** on every `POST /api/auth/refresh`, the presented token's `RevokedAt` is set, and a new token row is inserted. Reuse of a revoked token returns `401 Unauthorized`.
+
+---
+
+## 3. Bookings Table
 
 ```sql
 CREATE TABLE Bookings (
     Id                  UNIQUEIDENTIFIER    NOT NULL DEFAULT NEWSEQUENTIALID(),
+    UserId              UNIQUEIDENTIFIER    NOT NULL,
     ReferenceCode       NVARCHAR(12)        NOT NULL,
     FlightNumber        NVARCHAR(20)        NOT NULL,
     Provider            NVARCHAR(50)        NOT NULL,
@@ -43,6 +94,7 @@ CREATE TABLE Bookings (
     CreatedAt           DATETIME2(0)        NOT NULL DEFAULT SYSUTCDATETIME(),
 
     CONSTRAINT PK_Bookings PRIMARY KEY (Id),
+    CONSTRAINT FK_Bookings_Users FOREIGN KEY (UserId) REFERENCES Users(Id),
     CONSTRAINT UQ_Bookings_ReferenceCode UNIQUE (ReferenceCode),
     CONSTRAINT CHK_Bookings_Passengers CHECK (Passengers BETWEEN 1 AND 9),
     CONSTRAINT CHK_Bookings_TotalPrice CHECK (TotalPrice > 0),
@@ -52,7 +104,7 @@ CREATE TABLE Bookings (
 );
 ```
 
-**Column notes:** `Id` uses `NEWSEQUENTIALID()` to reduce index fragmentation vs `NEWID()`. `ReferenceCode` is `NVARCHAR(12)` to fit the `SKY-` prefix + 7 chars. `Origin`/`Destination` are `NCHAR(3)` (IATA codes are always exactly 3 characters). `TotalPrice` is always server-calculated, never derived from client input. `CreatedAt` is UTC only via `SYSUTCDATETIME()`.
+**Column notes:** `UserId` is a non-nullable FK to `Users.Id` — every booking belongs to an authenticated user. `Id` uses `NEWSEQUENTIALID()` to reduce index fragmentation vs `NEWID()`. `ReferenceCode` is `NVARCHAR(12)` to fit the `SKY-` prefix + 7 chars. `Origin`/`Destination` are `NCHAR(3)` (IATA codes are always exactly 3 characters). `TotalPrice` is always server-calculated, never derived from client input. `CreatedAt` is UTC only via `SYSUTCDATETIME()`.
 
 **Reference code generation pattern:**
 - Format: `SKY-` + 7 cryptographically random uppercase alphanumeric characters `[A-Z0-9]`
@@ -66,10 +118,21 @@ CREATE TABLE Bookings (
 
 ---
 
-## 2. Indexing
+## 4. Indexing
 
 ```sql
+-- Users
+CREATE UNIQUE INDEX UX_Users_Email ON Users (Email);
+
+-- RefreshTokens
+CREATE UNIQUE INDEX UX_RefreshTokens_TokenHash ON RefreshTokens (TokenHash);
+CREATE INDEX IX_RefreshTokens_UserId ON RefreshTokens (UserId);   -- revoke-all-for-user
+
+-- Bookings
 CREATE UNIQUE INDEX UX_Bookings_ReferenceCode ON Bookings (ReferenceCode);
+
+CREATE INDEX IX_Bookings_UserId
+    ON Bookings (UserId) INCLUDE (ReferenceCode, CreatedAt);   -- GET /api/bookings/me
 
 CREATE INDEX IX_Bookings_Email
     ON Bookings (Email) INCLUDE (ReferenceCode, CreatedAt);   -- future "manage my bookings"
@@ -81,17 +144,56 @@ CREATE INDEX IX_Bookings_CreatedAt ON Bookings (CreatedAt DESC);  -- admin/repor
 
 ---
 
-## 3. EF Core Configuration
+## 5. EF Core Configuration
 
 ```csharp
 public class SkyRouteDbContext : DbContext
 {
+    public DbSet<User> Users => Set<User>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Booking> Bookings => Set<Booking>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(SkyRouteDbContext).Assembly);
 }
 
+// UserConfiguration
+public class UserConfiguration : IEntityTypeConfiguration<User>
+{
+    public void Configure(EntityTypeBuilder<User> builder)
+    {
+        builder.ToTable("Users");
+        builder.HasKey(u => u.Id);
+        builder.Property(u => u.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(u => u.Email).IsRequired().HasMaxLength(320);
+        builder.HasIndex(u => u.Email).IsUnique();
+        builder.Property(u => u.PasswordHash).IsRequired().HasMaxLength(500);
+        builder.Property(u => u.FirstName).IsRequired().HasMaxLength(100);
+        builder.Property(u => u.LastName).IsRequired().HasMaxLength(100);
+        builder.Property(u => u.CreatedAt).IsRequired().HasDefaultValueSql("SYSUTCDATETIME()");
+        builder.HasMany(u => u.RefreshTokens).WithOne(rt => rt.User).HasForeignKey(rt => rt.UserId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(u => u.Bookings).WithOne(b => b.User).HasForeignKey(b => b.UserId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+// RefreshTokenConfiguration
+public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
+{
+    public void Configure(EntityTypeBuilder<RefreshToken> builder)
+    {
+        builder.ToTable("RefreshTokens");
+        builder.HasKey(rt => rt.Id);
+        builder.Property(rt => rt.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(rt => rt.TokenHash).IsRequired().HasMaxLength(100);
+        builder.HasIndex(rt => rt.TokenHash).IsUnique();
+        builder.HasIndex(rt => rt.UserId);
+        builder.Property(rt => rt.CreatedAt).IsRequired().HasDefaultValueSql("SYSUTCDATETIME()");
+        builder.Property(rt => rt.ExpiresAt).IsRequired();
+        builder.Property(rt => rt.RevokedAt).IsRequired(false);
+    }
+}
+
+// BookingConfiguration — updated with UserId FK
 public class BookingConfiguration : IEntityTypeConfiguration<Booking>
 {
     public void Configure(EntityTypeBuilder<Booking> builder)
@@ -99,6 +201,8 @@ public class BookingConfiguration : IEntityTypeConfiguration<Booking>
         builder.ToTable("Bookings");
         builder.HasKey(b => b.Id);
         builder.Property(b => b.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+        builder.Property(b => b.UserId).IsRequired();
+        builder.HasIndex(b => b.UserId).IncludeProperties(b => new { b.ReferenceCode, b.CreatedAt });
         builder.Property(b => b.ReferenceCode).IsRequired().HasMaxLength(12);
         builder.HasIndex(b => b.ReferenceCode).IsUnique();
         builder.Property(b => b.FlightNumber).IsRequired().HasMaxLength(20);
@@ -132,8 +236,6 @@ dotnet ef database update --project SkyRoute.Infrastructure --startup-project Sk
 
 **Migration rollback strategy:**
 
-If a migration fails or needs to be reverted in production:
-
 1. **Rollback to previous migration:**
    ```bash
    dotnet ef database update <PreviousMigrationName> --project SkyRoute.Infrastructure --startup-project SkyRoute.API
@@ -158,7 +260,7 @@ If a migration fails or needs to be reverted in production:
 
 ---
 
-## 4. Airport Registry (Non-Database)
+## 6. Airport Registry (Non-Database)
 
 ```csharp
 public record Airport(string Code, string Name, string City, string CountryCode);

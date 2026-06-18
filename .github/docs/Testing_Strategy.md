@@ -6,7 +6,7 @@
 
 **Philosophy:** test business rules and integration boundaries; do not test framework plumbing.
 
-**Priority order:** (1) pricing strategies — zero tolerance for rounding errors; (2) booking validation — document/route mismatch must never reach the database; (3) provider aggregation — search must fan out and merge correctly; (4) frontend dynamic validation — document field must respond to route type.
+**Priority order:** (1) pricing strategies — zero tolerance for rounding errors; (2) booking validation — document/route mismatch must never reach the database; (3) provider aggregation — search must fan out and merge correctly; (4) auth use cases — credential and token security rules must never regress; (5) frontend dynamic validation — document field must respond to route type.
 
 ---
 
@@ -45,6 +45,22 @@ public void BudgetWingsPricing_AppliesDiscountWithMinimum(decimal baseFare, deci
 
 **Route type detection:** JFK(US)→LAX(US) ⇒ `NationalId` required; JFK(US)→LHR(GB) ⇒ `Passport` required.
 
+**Auth use cases:**
+
+| Test | Scenario |
+|---|---|
+| `RegisterUseCase` — success | New email → user created, token pair returned |
+| `RegisterUseCase` — duplicate email | Email already exists → `409 Conflict` |
+| `LoginUseCase` — success | Correct credentials → token pair returned |
+| `LoginUseCase` — wrong password | Incorrect password → `401 Unauthorized` |
+| `LoginUseCase` — unknown email | Non-existent email → `401 Unauthorized` (same message as wrong password) |
+| `RefreshTokenUseCase` — success | Valid token → old revoked, new pair returned |
+| `RefreshTokenUseCase` — expired token | Token past `ExpiresAt` → `401 Unauthorized` |
+| `RefreshTokenUseCase` — revoked token | Token with `RevokedAt` set → `401 Unauthorized` |
+| `RefreshTokenUseCase` — unknown token | Hash not in DB → `401 Unauthorized` |
+| `RevokeTokenUseCase` — success | Valid token → `RevokedAt` set |
+| `RevokeTokenUseCase` — unknown token | Not found → returns without error (no enumeration) |
+
 ---
 
 ## 2. Integration Tests (xUnit + `WebApplicationFactory<Program>` + EF Core InMemory)
@@ -57,12 +73,24 @@ Scope: HTTP request → controller → use case → repository → HTTP response
 | Past departure date returns 400 | `POST /api/flights/search` | `departureDate` in the past |
 | Same origin/destination returns 400 | `POST /api/flights/search` | `origin == destination` |
 | Invalid airport code returns 400 | `POST /api/flights/search` | `origin: "ZZZ"` |
-| Valid booking returns 201 with reference | `POST /api/bookings` | FlightId from prior search; international + Passport |
+| Valid booking returns 201 with reference | `POST /api/bookings` | FlightId from prior search; international + Passport; valid JWT |
+| Booking without JWT returns 401 | `POST /api/bookings` | No Authorization header |
+| Booking with expired JWT returns 401 | `POST /api/bookings` | Expired access token |
 | Unknown FlightId returns 404 | `POST /api/bookings` | Random GUID not in cache |
 | Unknown FlightId returns correct detail | `POST /api/bookings` | Response `detail` contains "no longer available" |
 | Wrong document type returns 400 | `POST /api/bookings` | International + NationalId |
 | Malformed request returns 400 | `POST /api/bookings` | Missing required fields |
 | Invalid passenger count returns 400 | `POST /api/bookings` | `passengers: 0` or `10` |
+| Register returns 201 with tokens | `POST /api/auth/register` | Valid payload |
+| Register duplicate email returns 409 | `POST /api/auth/register` | Email already registered |
+| Login returns 200 with tokens | `POST /api/auth/login` | Correct credentials |
+| Login wrong password returns 401 | `POST /api/auth/login` | Bad password |
+| Refresh returns 200 with new tokens | `POST /api/auth/refresh` | Valid refresh token |
+| Refresh expired token returns 401 | `POST /api/auth/refresh` | Expired refresh token |
+| Refresh revoked token returns 401 | `POST /api/auth/refresh` | Already-rotated token |
+| Revoke returns 200 | `POST /api/auth/revoke` | Valid or unknown token |
+| My bookings returns 200 scoped to user | `GET /api/bookings/me` | Only authenticated user's bookings returned |
+| My bookings without JWT returns 401 | `GET /api/bookings/me` | No Authorization header |
 
 ---
 
@@ -95,6 +123,13 @@ Label must also update reactively when the route is switched mid-form.
 | Server recalculates price from cached BaseFare on booking | Unit |
 | Unknown/expired FlightId → 404 | Unit + Integration |
 | Departure date must not be in the past | Integration |
+| Passwords never stored in plaintext | Unit |
+| Refresh tokens never stored in plaintext (SHA-256 hash only) | Unit |
+| Revoked refresh token → 401 (never 400) | Unit + Integration |
+| Expired refresh token → 401 (never 400) | Unit + Integration |
+| `POST /api/bookings` without JWT → 401 | Integration |
+| `GET /api/bookings/me` only returns the authenticated user's bookings | Integration | 
+| Login with wrong password → 401, same message as unknown email | Unit + Integration |
 
 ---
 
@@ -105,6 +140,7 @@ Label must also update reactively when the route is switched mid-form.
 | Pricing strategies | 100% |
 | Route type detection | 100% |
 | Booking validation | 100% |
+| Auth use cases (register, login, refresh, revoke) | 100% |
 | Use cases | ≥80% |
 | API endpoints | All happy paths + all documented error cases |
 | Frontend dynamic validation | 100% |
@@ -114,7 +150,7 @@ Label must also update reactively when the route is switched mid-form.
 
 ## 6. Explicitly Not Tested
 
-EF Core internals; Angular framework behavior (routing, DI resolution); the specific shape of mock provider data (only that results are returned); HTTP client configuration.
+EF Core internals; Angular framework behavior (routing, DI resolution); the specific shape of mock provider data (only that results are returned); HTTP client configuration; JWT signing algorithm internals.
 
 ---
 

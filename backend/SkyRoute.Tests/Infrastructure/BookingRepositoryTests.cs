@@ -184,17 +184,36 @@ public sealed class BookingRepositoryTests : IDisposable
         Assert.All(results, r => Assert.Equal(booking.Id, r!.Id));
     }
 
+    [Fact]
+    public async Task GetByUserIdAsync_ReturnsOnlyBookingsForRequestedUser()
+    {
+        var userId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
+        var booking1 = CreateValidBookingWithReference(new BookingReference("SKY-USER001"), userId);
+        var booking2 = CreateValidBookingWithReference(new BookingReference("SKY-USER002"), userId);
+        var booking3 = CreateValidBookingWithReference(new BookingReference("SKY-OTHER01"), otherUserId);
+        await _repository.SaveAsync(booking1);
+        await _repository.SaveAsync(booking2);
+        await _repository.SaveAsync(booking3);
+
+        var results = await _repository.GetByUserIdAsync(userId);
+
+        Assert.Equal(2, results.Count);
+        Assert.All(results, booking => Assert.Equal(userId, booking.UserId));
+    }
+
     private static Booking CreateValidBooking(string? referenceCode = null)
     {
         referenceCode ??= $"SKY-{Guid.NewGuid().ToString("N")[..7].ToUpper()}";
-        return CreateValidBookingWithReference(new BookingReference(referenceCode));
+        return CreateValidBookingWithReference(new BookingReference(referenceCode), Guid.NewGuid());
     }
 
-    private static Booking CreateValidBookingWithReference(BookingReference reference)
+    private static Booking CreateValidBookingWithReference(BookingReference reference, Guid userId)
     {
         return new Booking(
             id: Guid.NewGuid(),
             referenceCode: reference,
+            userId: userId,
             provider: "GlobalAir",
             flightNumber: "GA-4821",
             origin: "JFK",

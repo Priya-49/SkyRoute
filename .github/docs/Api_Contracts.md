@@ -173,7 +173,9 @@ If no flights match, return `200 OK` with an empty `results` array — not a `40
 
 ### 2.4 POST `/api/bookings`
 
-Create a booking for a selected flight.
+Create a booking for a selected flight. **Requires authentication** — include `Authorization: Bearer <accessToken>` header. The authenticated user's ID is extracted from the JWT and stored on the booking.
+
+**Returns `401 Unauthorized`** if no valid JWT is provided.
 
 > **Authentication required.** Include the JWT token from `/api/auth/login` in the request header:
 > ```
@@ -260,6 +262,39 @@ Generated using a cryptographically random 7-character string from `[A-Z0-9]`. U
 
 ---
 
+### 2.7 GET `/api/bookings/me`
+
+Returns all bookings belonging to the currently authenticated user. **Requires authentication.**
+
+**Returns `401 Unauthorized`** if no valid JWT is provided.
+
+#### Response Body — `200 OK`
+
+```json
+{
+  "bookings": [
+    {
+      "referenceCode": "SKY-A3B7X2K",
+      "provider": "GlobalAir",
+      "flightNumber": "GA-4821",
+      "origin": "JFK",
+      "destination": "LHR",
+      "departureTime": "2026-08-15T08:00:00",
+      "arrivalTime": "2026-08-15T20:00:00",
+      "cabinClass": "Economy",
+      "passengers": 2,
+      "pricePerPassenger": "368.00",
+      "totalPrice": "736.00",
+      "createdAt": "2026-06-18T05:10:00"
+    }
+  ]
+}
+```
+
+Results are ordered by `CreatedAt` descending (most recent first). Returns an empty `bookings` array if the user has no bookings — never `404`.
+
+---
+
 ## 3. Error Contract
 
 All errors follow RFC 7807 ProblemDetails format.
@@ -276,6 +311,32 @@ All errors follow RFC 7807 ProblemDetails format.
     "departureDate": ["Departure date must be today or in the future."],
     "documentType": ["Passport is required for international routes."]
   }
+}
+```
+
+### 401 — Unauthorized
+
+Returned when a protected endpoint is called without a valid JWT, or when login/refresh credentials are invalid.
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc7807",
+  "title": "Unauthorized",
+  "status": 401,
+  "detail": "Invalid email or password."
+}
+```
+
+### 409 — Conflict
+
+Returned when `POST /api/auth/register` is called with an email that already exists.
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc7807",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "An account with this email address already exists."
 }
 ```
 
@@ -358,12 +419,43 @@ search(query: FlightSearchQuery): Observable<FlightSearchResponse>
 
 ```typescript
 createBooking(command: CreateBookingCommand): Observable<BookingConfirmation>
-// POST /api/bookings
+// POST /api/bookings — requires Authorization header (attached by AuthInterceptor)
+
+getMyBookings(): Observable<MyBookingsResponse>
+// GET /api/bookings/me — requires Authorization header
 ```
 
 ### TypeScript Interfaces
 
 ```typescript
+// Auth request models
+interface RegisterCommand {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+}
+
+interface LoginCommand {
+  email: string;
+  password: string;
+}
+
+interface RefreshTokenCommand {
+  refreshToken: string;
+}
+
+interface RevokeTokenCommand {
+  refreshToken: string;
+}
+
+// Auth response model
+interface AuthTokenResponse {
+  accessToken: string;
+  expiresIn: number;       // seconds — 900 (15 minutes)
+  refreshToken: string;
+}
+
 // Request models
 interface RegisterCommand {
   email: string;
@@ -442,6 +534,25 @@ interface BookingConfirmation {
   pricePerPassenger: string;
   totalPrice: string;
 }
+
+interface BookingSummary {
+  referenceCode: string;
+  provider: string;
+  flightNumber: string;
+  origin: string;
+  destination: string;
+  departureTime: string;
+  arrivalTime: string;
+  cabinClass: string;
+  passengers: number;
+  pricePerPassenger: string;
+  totalPrice: string;
+  createdAt: string;
+}
+
+interface MyBookingsResponse {
+  bookings: BookingSummary[];
+}
 ```
 
 ---
@@ -460,4 +571,3 @@ Hardcoded airports available to both frontend (dropdowns) and backend (validatio
 | DXB | Dubai International | Dubai | AE |
 
 ---
-

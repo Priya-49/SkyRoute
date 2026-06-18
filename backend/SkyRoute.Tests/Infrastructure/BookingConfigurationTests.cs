@@ -7,7 +7,7 @@ namespace SkyRoute.Tests.Infrastructure;
 public sealed class BookingConfigurationTests
 {
     [Fact]
-    public void BookingConfiguration_CreatesIndexes_ForReferenceCodeAndFlightId()
+    public void BookingConfiguration_CreatesIndexes_ForReferenceCodeAndUserId()
     {
         var options = new DbContextOptionsBuilder<SkyRouteDbContext>()
             .UseInMemoryDatabase("booking-configuration-test")
@@ -18,6 +18,6 @@ public sealed class BookingConfigurationTests
 
         Assert.NotNull(bookingEntity);
         Assert.Contains(bookingEntity!.GetIndexes(), index => index.Properties.Any(property => property.Name == nameof(Booking.ReferenceCode)));
-        Assert.Contains(bookingEntity.GetIndexes(), index => index.Properties.Any(property => property.Name == "FlightId"));
+        Assert.Contains(bookingEntity.GetIndexes(), index => index.Properties.Any(property => property.Name == nameof(Booking.UserId)));
     }
 }

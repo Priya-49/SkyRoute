@@ -7,6 +7,8 @@ public sealed class CreateBookingCommand
     [Required]
     public Guid FlightId { get; set; }
 
+    public Guid UserId { get; set; }
+
     [Required]
     [RegularExpression("^[A-Z]{3}$")]
     public string Origin { get; set; } = string.Empty;

@@ -1,4 +1,6 @@
 using FluentValidation;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SkyRoute.API.Contracts.Bookings;
 using SkyRoute.Application.Bookings;
@@ -10,20 +12,38 @@ namespace SkyRoute.API.Controllers;
 public sealed class BookingsController : ControllerBase
 {
     private readonly CreateBookingUseCase _createBookingUseCase;
+    private readonly GetMyBookingsUseCase _getMyBookingsUseCase;
     private readonly IValidator<CreateBookingCommand> _validator;
 
-    public BookingsController(CreateBookingUseCase createBookingUseCase, IValidator<CreateBookingCommand> validator)
+    public BookingsController(
+        CreateBookingUseCase createBookingUseCase,
+        GetMyBookingsUseCase getMyBookingsUseCase,
+        IValidator<CreateBookingCommand> validator)
     {
         _createBookingUseCase = createBookingUseCase ?? throw new ArgumentNullException(nameof(createBookingUseCase));
+        _getMyBookingsUseCase = getMyBookingsUseCase ?? throw new ArgumentNullException(nameof(getMyBookingsUseCase));
         _validator = validator ?? throw new ArgumentNullException(nameof(validator));
     }
 
     [HttpPost]
+    [Authorize]
     public async Task<IActionResult> Create([FromBody] CreateBookingRequest request, CancellationToken cancellationToken)
     {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized(new ProblemDetails
+            {
+                Type = "https://tools.ietf.org/html/rfc7807",
+                Title = "Unauthorized",
+                Status = StatusCodes.Status401Unauthorized,
+                Detail = "A valid access token is required."
+            });
+        }
+
         var command = new CreateBookingCommand
         {
             FlightId = request.FlightId,
+            UserId = userId,
             Origin = request.Origin,
             Destination = request.Destination,
             Passengers = request.Passengers,
@@ -92,5 +112,47 @@ public sealed class BookingsController : ControllerBase
 
             return ValidationProblem(ModelState);
         }
+    }
+
+    [HttpGet("me")]
+    [Authorize]
+    public async Task<IActionResult> Me(CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized(new ProblemDetails
+            {
+                Type = "https://tools.ietf.org/html/rfc7807",
+                Title = "Unauthorized",
+                Status = StatusCodes.Status401Unauthorized,
+                Detail = "A valid access token is required."
+            });
+        }
+
+        var bookings = await _getMyBookingsUseCase.ExecuteAsync(userId, cancellationToken);
+        return Ok(new MyBookingsResponse
+        {
+            Bookings = bookings.Select(booking => new BookingSummaryResponse
+            {
+                ReferenceCode = booking.ReferenceCode,
+                Provider = booking.Provider,
+                FlightNumber = booking.FlightNumber,
+                Origin = booking.Origin,
+                Destination = booking.Destination,
+                DepartureTime = booking.DepartureTime,
+                ArrivalTime = booking.ArrivalTime,
+                CabinClass = booking.CabinClass,
+                Passengers = booking.Passengers,
+                PricePerPassenger = booking.PricePerPassenger.ToString("0.00"),
+                TotalPrice = booking.TotalPrice.ToString("0.00"),
+                CreatedAt = booking.CreatedAt
+            }).ToList()
+        });
+    }
+
+    private bool TryGetUserId(out Guid userId)
+    {
+        var claimValue = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+        return Guid.TryParse(claimValue, out userId);
     }
 }

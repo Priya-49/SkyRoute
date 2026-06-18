@@ -77,6 +77,7 @@ public sealed class CreateBookingCommandValidatorTests
         new()
         {
             FlightId = Guid.NewGuid(),
+            UserId = Guid.NewGuid(),
             Origin = "JFK",
             Destination = "LHR",
             Passengers = 2,

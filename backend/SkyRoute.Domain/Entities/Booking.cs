@@ -20,6 +20,7 @@ public sealed class Booking
     public Booking(
         Guid id,
         BookingReference referenceCode,
+        Guid userId,
         string provider,
         string flightNumber,
         string origin,
@@ -44,6 +45,7 @@ public sealed class Booking
 
         Id = id;
         ReferenceCode = referenceCode ?? throw new ArgumentNullException(nameof(referenceCode));
+        UserId = RequireUserId(userId);
         Provider = RequireValue(provider, nameof(provider));
         FlightNumber = RequireValue(flightNumber, nameof(flightNumber));
         Origin = RequireIataCode(origin, nameof(origin));
@@ -70,6 +72,8 @@ public sealed class Booking
     public Guid Id { get; }
 
     public BookingReference ReferenceCode { get; }
+
+    public Guid UserId { get; }
 
     public string Provider { get; }
 
@@ -197,5 +201,15 @@ public sealed class Booking
         }
 
         return status;
+    }
+
+    private static Guid RequireUserId(Guid userId)
+    {
+        if (userId == Guid.Empty)
+        {
+            throw new ArgumentException("User id cannot be empty.", nameof(userId));
+        }
+
+        return userId;
     }
 }

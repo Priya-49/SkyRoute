@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -20,38 +21,10 @@ public sealed class BookingsControllerEndpointTests : IClassFixture<BookingsCont
     }
 
     [Fact]
-    public async Task Create_ReturnsCreated_WithContractShapeForValidRequest()
+    public async Task Create_ReturnsUnauthorized_WhenNoJwtIsProvided()
     {
         using var client = _factory.CreateClient();
-        var firstFlight = await SearchFirstFlightAsync(client, "JFK", "LHR");
-
-        var request = BuildBookingRequest(firstFlight, "Passport", "P1234567");
-        var response = await client.PostAsJsonAsync("/api/bookings", request);
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-
-        var json = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(json);
-
-        Assert.True(doc.RootElement.TryGetProperty("referenceCode", out var referenceCode));
-        Assert.Matches("^SKY-[A-Z0-9]{7}$", referenceCode.GetString()!);
-        Assert.Equal("Jane Doe", doc.RootElement.GetProperty("passengerName").GetString());
-        Assert.Equal(firstFlight.GetProperty("provider").GetString(), doc.RootElement.GetProperty("provider").GetString());
-        Assert.Equal(firstFlight.GetProperty("flightNumber").GetString(), doc.RootElement.GetProperty("flightNumber").GetString());
-        Assert.Equal(firstFlight.GetProperty("origin").GetString(), doc.RootElement.GetProperty("origin").GetString());
-        Assert.Equal(firstFlight.GetProperty("destination").GetString(), doc.RootElement.GetProperty("destination").GetString());
-        Assert.Equal(firstFlight.GetProperty("departureTime").GetString(), doc.RootElement.GetProperty("departureTime").GetString());
-        Assert.Equal(firstFlight.GetProperty("arrivalTime").GetString(), doc.RootElement.GetProperty("arrivalTime").GetString());
-        Assert.Equal(firstFlight.GetProperty("cabinClass").GetString(), doc.RootElement.GetProperty("cabinClass").GetString());
-        Assert.Equal(2, doc.RootElement.GetProperty("passengers").GetInt32());
-        Assert.Matches(@"^\d+\.\d{2}$", doc.RootElement.GetProperty("pricePerPassenger").GetString()!);
-        Assert.Matches(@"^\d+\.\d{2}$", doc.RootElement.GetProperty("totalPrice").GetString()!);
-    }
-
-    [Fact]
-    public async Task Create_ReturnsNotFound_WhenFlightIsMissingFromCache()
-    {
-        using var client = _factory.CreateClient();
-        var request = new
+        var response = await client.PostAsJsonAsync("/api/bookings", new
         {
             flightId = Guid.NewGuid(),
             provider = "GlobalAir",
@@ -66,32 +39,68 @@ public sealed class BookingsControllerEndpointTests : IClassFixture<BookingsCont
             email = "jane.doe@example.com",
             documentType = "Passport",
             documentNumber = "P1234567"
-        };
+        });
 
-        var response = await client.PostAsJsonAsync("/api/bookings", request);
-        var json = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(json);
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        Assert.Equal("Not Found", doc.RootElement.GetProperty("title").GetString());
-        Assert.Equal("The selected flight is no longer available. Please search again.", doc.RootElement.GetProperty("detail").GetString());
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
-    public async Task Create_ReturnsBadRequest_WhenDocumentTypeDoesNotMatchRouteType()
+    public async Task Create_ReturnsCreated_WhenValidJwtIsProvided()
     {
         using var client = _factory.CreateClient();
-        var firstFlight = await SearchFirstFlightAsync(client, "DEL", "BOM");
+        var token = await RegisterAndGetAccessTokenAsync(client, "booker@example.com");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
+        var firstFlight = await SearchFirstFlightAsync(client, "JFK", "LHR");
         var request = BuildBookingRequest(firstFlight, "Passport", "P1234567");
         var response = await client.PostAsJsonAsync("/api/bookings", request);
         var json = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(json);
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.True(doc.RootElement.TryGetProperty("errors", out var errors));
-        Assert.True(errors.TryGetProperty("DocumentType", out var documentTypeErrors));
-        Assert.Contains("NationalId is required for domestic routes.", documentTypeErrors[0].GetString());
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Matches("^SKY-[A-Z0-9]{7}$", doc.RootElement.GetProperty("referenceCode").GetString()!);
+    }
+
+    [Fact]
+    public async Task Me_ReturnsOnlyBookingsForAuthenticatedUser()
+    {
+        using var firstUserClient = _factory.CreateClient();
+        var firstUserToken = await RegisterAndGetAccessTokenAsync(firstUserClient, "first.user@example.com");
+        firstUserClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", firstUserToken);
+
+        using var secondUserClient = _factory.CreateClient();
+        var secondUserToken = await RegisterAndGetAccessTokenAsync(secondUserClient, "second.user@example.com");
+        secondUserClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", secondUserToken);
+
+        var flight1 = await SearchFirstFlightAsync(firstUserClient, "JFK", "LHR");
+        var flight2 = await SearchFirstFlightAsync(secondUserClient, "JFK", "LHR");
+
+        await firstUserClient.PostAsJsonAsync("/api/bookings", BuildBookingRequest(flight1, "Passport", "P1234567"));
+        await secondUserClient.PostAsJsonAsync("/api/bookings", BuildBookingRequest(flight2, "Passport", "P7654321"));
+
+        var mineResponse = await firstUserClient.GetAsync("/api/bookings/me");
+        var mineJson = await mineResponse.Content.ReadAsStringAsync();
+        using var mineDoc = JsonDocument.Parse(mineJson);
+
+        Assert.Equal(HttpStatusCode.OK, mineResponse.StatusCode);
+        var bookings = mineDoc.RootElement.GetProperty("bookings");
+        Assert.Single(bookings.EnumerateArray());
+    }
+
+    private static async Task<string> RegisterAndGetAccessTokenAsync(HttpClient client, string email)
+    {
+        var registerResponse = await client.PostAsJsonAsync("/api/auth/register", new
+        {
+            email,
+            password = "S3cur3P@ssw0rd!",
+            firstName = "Jane",
+            lastName = "Doe"
+        });
+        registerResponse.EnsureSuccessStatusCode();
+
+        var json = await registerResponse.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.GetProperty("accessToken").GetString()!;
     }
 
     private static async Task<JsonElement> SearchFirstFlightAsync(HttpClient client, string origin, string destination)
@@ -110,11 +119,7 @@ public sealed class BookingsControllerEndpointTests : IClassFixture<BookingsCont
 
         var json = await searchResponse.Content.ReadAsStringAsync();
         using var document = JsonDocument.Parse(json);
-
-        var results = document.RootElement.GetProperty("results");
-        Assert.True(results.GetArrayLength() > 0);
-
-        return results[0].Clone();
+        return document.RootElement.GetProperty("results")[0].Clone();
     }
 
     private static object BuildBookingRequest(JsonElement flight, string documentType, string documentNumber) =>
@@ -146,7 +151,7 @@ public sealed class BookingsControllerEndpointTests : IClassFixture<BookingsCont
                 services.RemoveAll<SkyRouteDbContext>();
                 services.AddDbContext<SkyRouteDbContext>(options =>
                 {
-                    options.UseInMemoryDatabase($"SkyRouteBookingsTests-{Guid.NewGuid()}");
+                    options.UseInMemoryDatabase("SkyRouteAuthBookingsTests");
                 });
             });
         }

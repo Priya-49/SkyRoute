@@ -15,5 +15,7 @@ public sealed class SkyRouteDbContextTests
         using var context = new SkyRouteDbContext(options);
 
         Assert.Contains(context.Model.GetEntityTypes(), entity => entity.ClrType == typeof(SkyRoute.Domain.Entities.Booking));
+        Assert.Contains(context.Model.GetEntityTypes(), entity => entity.ClrType == typeof(SkyRoute.Domain.Entities.User));
+        Assert.Contains(context.Model.GetEntityTypes(), entity => entity.ClrType == typeof(SkyRoute.Domain.Entities.RefreshToken));
     }
 }

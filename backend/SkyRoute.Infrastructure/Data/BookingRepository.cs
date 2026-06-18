@@ -69,6 +69,20 @@ public sealed class BookingRepository : IBookingRepository
             .FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Booking>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        if (userId == Guid.Empty)
+        {
+            throw new ArgumentException("User ID cannot be empty.", nameof(userId));
+        }
+
+        return await _context.Bookings
+            .AsNoTracking()
+            .Where(booking => booking.UserId == userId)
+            .OrderByDescending(booking => booking.CreatedAt)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Booking>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         return await _context.Bookings
