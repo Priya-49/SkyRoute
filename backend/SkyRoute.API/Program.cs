@@ -4,6 +4,7 @@ using SkyRoute.Infrastructure.Caching;
 using SkyRoute.Infrastructure.Pricing;
 using SkyRoute.Infrastructure.Providers;
 using SkyRoute.Application.Flights;
+using SkyRoute.Application.Bookings;
 using FluentValidation;
 using Serilog;
 using Microsoft.EntityFrameworkCore;
@@ -44,8 +45,11 @@ builder.Services.AddScoped<IFlightProvider, BudgetWingsProvider>();
 builder.Services.AddSingleton<SkyRoute.Application.Interfaces.IPricingStrategy, GlobalAirPricingStrategy>();
 builder.Services.AddSingleton<SkyRoute.Application.Interfaces.IPricingStrategy, BudgetWingsPricingStrategy>();
 builder.Services.AddSingleton<IFlightSearchCache, FlightSearchCache>();
+builder.Services.AddScoped<IBookingRepository, BookingRepository>();
 builder.Services.AddScoped<SearchFlightsUseCase>();
+builder.Services.AddScoped<CreateBookingUseCase>();
 builder.Services.AddScoped<IValidator<SearchFlightsQuery>, SearchFlightsQueryValidator>();
+builder.Services.AddScoped<IValidator<CreateBookingCommand>, CreateBookingCommandValidator>();
 
 var app = builder.Build();
 
