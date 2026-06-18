@@ -14,9 +14,9 @@
 | Decimal format | String with 2 decimal places — `"320.00"` |
 | Currency | `USD` (all prices) — future multi-currency support via `currency` field |
 | Error format | RFC 7807 ProblemDetails |
-| HTTP success codes | `200 OK` (search, token refresh), `201 Created` (booking, register) |
-| HTTP error codes | `400` validation, `401` unauthorized, `404` not found, `409` conflict, `500` server error |
-| Authentication | `Authorization: Bearer <accessToken>` on all protected endpoints |
+| HTTP success codes | `200 OK` (search, auth), `201 Created` (booking) |
+| HTTP error codes | `400` validation, `401` unauthorized, `404` not found, `500` server error |
+| Authentication | JWT Bearer token — required on `POST /api/bookings` only |
 
 ---
 
@@ -24,16 +24,14 @@
 
 ### 2.1 POST `/api/auth/register`
 
-Register a new user account. Returns a JWT access token and refresh token on success.
+Register a new user account.
 
 #### Request Body
 
 ```json
 {
   "email": "jane.doe@example.com",
-  "password": "S3cur3P@ssw0rd!",
-  "firstName": "Jane",
-  "lastName": "Doe"
+  "password": "P@ssw0rd123!"
 }
 ```
 
@@ -41,117 +39,52 @@ Register a new user account. Returns a JWT access token and refresh token on suc
 
 | Field | Type | Rules |
 |---|---|---|
-| `email` | `string` | Required. Valid email format. Max 320 characters. Must be unique — returns `409` if already registered. |
+| `email` | `string` | Required. Valid email format. Max 320 characters. Must be unique — returns `400` if already registered. |
 | `password` | `string` | Required. Min 8 characters. Must contain at least one uppercase letter, one digit, and one special character. |
-| `firstName` | `string` | Required. Max 100 characters. |
-| `lastName` | `string` | Required. Max 100 characters. |
 
-#### Response Body — `201 Created`
+#### Response Body — `200 OK`
 
 ```json
 {
-  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "expiresIn": 900,
-  "refreshToken": "d2f4a1b3-9c2e-4d7f-8a1b-3e5f7c9d2a4b"
+  "email": "jane.doe@example.com",
+  "message": "Registration successful."
 }
 ```
-
-| Field | Notes |
-|---|---|
-| `accessToken` | Signed JWT. Expires in **15 minutes** (`expiresIn: 900` seconds). |
-| `refreshToken` | Opaque token. Expires in **30 days**. Store securely (HttpOnly cookie recommended on frontend). |
 
 ---
 
 ### 2.2 POST `/api/auth/login`
 
-Authenticate an existing user. Returns a JWT access token and refresh token.
+Authenticate and obtain a JWT bearer token.
 
 #### Request Body
 
 ```json
 {
   "email": "jane.doe@example.com",
-  "password": "S3cur3P@ssw0rd!"
-}
-```
-
-#### Request Field Validation
-
-| Field | Type | Rules |
-|---|---|---|
-| `email` | `string` | Required. Valid email format. |
-| `password` | `string` | Required. |
-
-#### Response Body — `200 OK`
-
-Same shape as `POST /api/auth/register` response.
-
-#### Error — Invalid Credentials
-
-Returns `401 Unauthorized` (not `404`) — never reveal whether the email exists.
-
-```json
-{
-  "type": "https://tools.ietf.org/html/rfc7807",
-  "title": "Unauthorized",
-  "status": 401,
-  "detail": "Invalid email or password."
-}
-```
-
----
-
-### 2.3 POST `/api/auth/refresh`
-
-Exchange a valid refresh token for a new access token + rotated refresh token.
-
-#### Request Body
-
-```json
-{
-  "refreshToken": "d2f4a1b3-9c2e-4d7f-8a1b-3e5f7c9d2a4b"
+  "password": "P@ssw0rd123!"
 }
 ```
 
 #### Response Body — `200 OK`
 
-Same shape as `POST /api/auth/register` response. The old refresh token is immediately revoked; the new one replaces it.
-
-#### Error — Invalid / Expired / Revoked Token
-
 ```json
 {
-  "type": "https://tools.ietf.org/html/rfc7807",
-  "title": "Unauthorized",
-  "status": 401,
-  "detail": "Refresh token is invalid or has expired."
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expiresAt": "2026-08-15T10:00:00"
 }
 ```
 
-**Replay attack rule:** if a previously-rotated (revoked) refresh token is presented, the server returns `401`. Future: revoke all tokens for the user as a security measure (token theft detection).
+| Field | Notes |
+|---|---|
+| `token` | Signed JWT bearer token. Client must include this in the `Authorization: Bearer <token>` header for protected endpoints. |
+| `expiresAt` | UTC datetime when the token expires. Configured via `Jwt:ExpiryMinutes` in `appsettings.json` (default: 60 minutes). |
+
+Returns `401 Unauthorized` with no body if credentials are invalid.
 
 ---
 
-### 2.4 POST `/api/auth/revoke`
-
-Revoke a refresh token (logout). No `Authorization` header required — uses the refresh token itself as proof of identity.
-
-#### Request Body
-
-```json
-{
-  "refreshToken": "d2f4a1b3-9c2e-4d7f-8a1b-3e5f7c9d2a4b"
-}
-```
-
-#### Response — `200 OK`
-
-Empty body. Always returns `200` — even if the token is already revoked or not found (prevents token enumeration).
-
----
-
-### 2.5 POST `/api/flights/search`
+### 2.3 POST `/api/flights/search`
 
 Search for available flights across all providers.
 
@@ -238,11 +171,17 @@ If no flights match, return `200 OK` with an empty `results` array — not a `40
 
 ---
 
-### 2.6 POST `/api/bookings`
+### 2.4 POST `/api/bookings`
 
 Create a booking for a selected flight. **Requires authentication** — include `Authorization: Bearer <accessToken>` header. The authenticated user's ID is extracted from the JWT and stored on the booking.
 
 **Returns `401 Unauthorized`** if no valid JWT is provided.
+
+> **Authentication required.** Include the JWT token from `/api/auth/login` in the request header:
+> ```
+> Authorization: Bearer <token>
+> ```
+> Requests without a valid token return `401 Unauthorized`.
 
 #### Request Body
 
@@ -412,6 +351,21 @@ Returned when `POST /api/auth/register` is called with an email that already exi
 }
 ```
 
+### 401 — Unauthorized
+
+Returned when `POST /api/bookings` is called without a valid JWT bearer token, or with an expired/invalid token.
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc7807",
+  "title": "Unauthorized",
+  "status": 401,
+  "detail": "Authentication is required to complete this booking. Please log in."
+}
+```
+
+**Client handling:** The Angular `ErrorInterceptor` must intercept `401` responses and redirect the user to the login page (`/login`), preserving the current route as a `returnUrl` query parameter so the user is sent back after successful authentication.
+
 #### 404 — Flight No Longer Available (Cache Expired)
 
 Returned when `POST /api/bookings` is called with a `flightId` that is not present in the server-side cache (either expired after 30 minutes or never existed).
@@ -447,17 +401,11 @@ No stack traces or internal details are exposed in `500` responses.
 ### `AuthService`
 
 ```typescript
-register(command: RegisterCommand): Observable<AuthTokenResponse>
+register(command: RegisterCommand): Observable<RegisterResponse>
 // POST /api/auth/register
 
-login(command: LoginCommand): Observable<AuthTokenResponse>
+login(command: LoginCommand): Observable<LoginResponse>
 // POST /api/auth/login
-
-refresh(command: RefreshTokenCommand): Observable<AuthTokenResponse>
-// POST /api/auth/refresh
-
-revoke(command: RevokeTokenCommand): Observable<void>
-// POST /api/auth/revoke
 ```
 
 ### `FlightService`
@@ -509,6 +457,16 @@ interface AuthTokenResponse {
 }
 
 // Request models
+interface RegisterCommand {
+  email: string;
+  password: string;
+}
+
+interface LoginCommand {
+  email: string;
+  password: string;
+}
+
 interface FlightSearchQuery {
   origin: string;
   destination: string;
@@ -534,6 +492,16 @@ interface CreateBookingCommand {
 }
 
 // Response models
+interface RegisterResponse {
+  email: string;
+  message: string;
+}
+
+interface LoginResponse {
+  token: string;
+  expiresAt: string;   // ISO 8601 UTC
+}
+
 interface FlightResult {
   flightId: string;
   provider: string;

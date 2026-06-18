@@ -229,77 +229,32 @@ Each phase remains small enough to build, test, and verify independently within 
 
 ---
 
----
-
-## Phase 2G — JWT Authentication & Refresh Token Rotation
+## Phase 2G — Authentication (JWT)
 
 **Deliverables:**
-
-**Domain:**
-* `User` entity (`Id`, `Email`, `PasswordHash`, `FirstName`, `LastName`, `CreatedAt`)
-* `RefreshToken` entity (`Id`, `UserId`, `TokenHash`, `CreatedAt`, `ExpiresAt`, `RevokedAt`)
-* `IUserRepository` interface (`CreateAsync`, `GetByEmailAsync`, `GetByIdAsync`)
-* `IRefreshTokenRepository` interface (`CreateAsync`, `GetByHashAsync`, `RevokeAsync`, `RevokeAllForUserAsync`)
-
-**Application:**
-* `RegisterCommand` DTO + `RegisterCommandValidator` (email uniqueness deferred to repository)
-* `LoginCommand` DTO + `LoginCommandValidator`
-* `RefreshTokenCommand` DTO + `RefreshTokenCommandValidator`
-* `RegisterUseCase` — hash password via `IPasswordHasher<User>`, persist user, return `AuthTokenDto`
-* `LoginUseCase` — verify credentials, issue JWT access token + refresh token, return `AuthTokenDto`
-* `RefreshTokenUseCase` — validate incoming refresh token hash, rotate (revoke old, issue new), return `AuthTokenDto`
-* `RevokeTokenUseCase` — revoke a specific refresh token (logout)
-* `AuthTokenDto` — `{ accessToken, expiresIn, refreshToken }`
-* `ITokenService` interface (Application layer) — `GenerateAccessToken(User)`, `GenerateRefreshToken()`
-* `IPasswordHasher` interface wrapper (Application layer) — keeps Application free of ASP.NET Core deps
-
-**Infrastructure:**
-* `UserRepository : IUserRepository` (EF Core)
-* `RefreshTokenRepository : IRefreshTokenRepository` (EF Core)
-* `UserConfiguration`, `RefreshTokenConfiguration` (EF Core entity configs)
-* `JwtTokenService : ITokenService` — issues JWTs signed with `HS256`; access token TTL 15 minutes; refresh token is a `Guid.NewGuid()` stored only as `SHA-256` hash in the database
-* Migrations: `Users` table, `RefreshTokens` table, `UserId` FK column added to `Bookings`
-
-**API:**
-* `AuthController` with four endpoints:
-  * `POST /api/auth/register`
-  * `POST /api/auth/login`
-  * `POST /api/auth/refresh`
-  * `POST /api/auth/revoke`
-* `BookingsController` updated: `[Authorize]` on `POST /api/bookings`; `UserId` extracted from JWT claims and written to the booking record
-* `GET /api/bookings/me` — returns only the authenticated user's bookings
-* `UseAuthentication()` + `UseAuthorization()` added to middleware pipeline in `Program.cs`
-* JWT bearer scheme registered via `AddAuthentication(JwtBearerDefaults.AuthenticationScheme)`
-
-**Tests:**
-* Unit: `RegisterUseCase` (duplicate email → 409), `LoginUseCase` (wrong password → 401), `RefreshTokenUseCase` (expired token → 401, revoked token → 401, valid rotation → new token pair), `RevokeTokenUseCase`
-* Integration: all four auth endpoints, `POST /api/bookings` returns 401 without token, returns 201 with valid token, `GET /api/bookings/me` scoped to authenticated user
-
-**Security rules (non-negotiable):**
-* Passwords stored using `IPasswordHasher<User>` (ASP.NET Core BCrypt-based hasher) — never plaintext
-* Refresh tokens stored as `SHA-256(token)` — the raw token is returned once and never persisted
-* Refresh token rotation: every `/refresh` call revokes the presented token and issues a brand-new pair
-* Expired or revoked refresh tokens return `401 Unauthorized` — never `400`
-* `accessToken` expiry: **15 minutes**
-* `refreshToken` expiry: **30 days**
-* JWT signing key sourced from `appsettings.json → Jwt:Key` — minimum 32 characters; never hardcoded
+* `ApplicationUser` extending ASP.NET Core Identity's `IdentityUser`
+* ASP.NET Core Identity + EF Core identity tables migration
+* `POST /api/auth/register` endpoint — creates a new user account
+* `POST /api/auth/login` endpoint — returns a signed JWT bearer token
+* `AuthController` in the API layer
+* JWT configuration in `appsettings.json` (`Jwt:Key`, `Jwt:Issuer`, `Jwt:Audience`, `Jwt:ExpiryMinutes`)
+* `[Authorize]` attribute applied to `POST /api/bookings` only — flight search remains public
+* JWT bearer middleware registered in `Program.cs`
+* Integration tests for register, login, and unauthorized booking attempt
 
 **Exit criteria:**
-* `POST /api/auth/register` creates a user and returns a valid token pair
-* `POST /api/auth/login` returns a valid token pair for correct credentials; 401 for wrong password
-* `POST /api/auth/refresh` rotates the refresh token and returns a new access token
-* `POST /api/auth/revoke` invalidates the refresh token
-* `POST /api/bookings` returns `401` when called without a valid JWT
-* `POST /api/bookings` succeeds with a valid JWT and persists `UserId` on the booking
-* `GET /api/bookings/me` returns only bookings belonging to the authenticated user
-* Refresh token replay (reuse after rotation) is rejected with `401`
-* All unit and integration tests pass
+* `POST /api/auth/register` returns `200 OK` with user details on success; `400` on duplicate email or validation failure
+* `POST /api/auth/login` returns `200 OK` with a valid JWT token on correct credentials; `401` on wrong credentials
+* Unauthenticated `POST /api/bookings` returns `401 Unauthorized`
+* Authenticated `POST /api/bookings` (valid Bearer token) succeeds as before
+* `POST /api/flights/search` remains publicly accessible — no token required
+* All integration tests pass
 
-**Estimated effort:** 2.5 hours
+**Estimated effort:** 1.5 hours
 
 ---
 
-**Backend/Database exit gate:** every endpoint in `Api_Contracts.md` for Auth, Search, and Booking is implemented, tested, and verifiable via Swagger/Postman before Phase 3 begins. Treat this as a hard checkpoint — Phase 3 assumes these contracts are frozen.
+**Backend/Database exit gate:** every endpoint in `Api_Contracts.md` for Search, Booking, and Auth is implemented, tested, and verifiable via a tool like Postman/curl/Swagger before Phase 3 begins. Treat this as a hard checkpoint — Phase 3 assumes these contracts are frozen.
 
 ---
 
@@ -526,8 +481,8 @@ Each phase remains small enough to build, test, and verify independently within 
 
 ```
 Phase 1 (done: 1A → 1B → 1C → 1D → 1E)
-Phase 2 — Backend & Database (both features + auth): 2A → 2B → 2C → 2D → 2E → 2F → 2G
-Phase 3 — Frontend (both features + auth UI): 3A → 3B → 3C → 3D → 3E → 3F
+Phase 2 — Backend & Database (both features): 2A → 2B → 2C → 2D → 2E → 2F → 2G
+Phase 3 — Frontend (both features): 3A → 3B → 3C → 3D → 3E → 3F
 Phase 4 — Cross-Cutting, Verification & Documentation: 4A → 4B → 4C → 4D → 4E
 ```
 
@@ -539,7 +494,7 @@ Within Phase 2 and Phase 3, still respect Domain → Application → Infrastruct
 
 **Total Phases:** 24 (5 already complete in Phase 1, 19 remaining across Phases 2-4)
 
-**Estimated Remaining Effort:** ~23.5 hours (Phase 2: ~9.5h · Phase 3: ~7.5h · Phase 4: ~6h)
+**Estimated Remaining Effort:** ~22.5 hours (Phase 2: ~8.5h · Phase 3: ~7.5h · Phase 4: ~6h)
 
 **Why this grouping, and what it trades away:**
 * Gains: full backend/DB stability and API-contract conformance before any UI work begins; frontend work proceeds against a frozen, fully-tested API surface with no backend churn mid-build.
